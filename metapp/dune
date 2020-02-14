@@ -1,0 +1,5 @@
+(library
+  (public_name metapp)
+  (kind ppx_rewriter)
+  (libraries ocaml-migrate-parsetree compiler-libs stdcompat dynlink
+     findlib.dynload metapp_preutils metapp_api))

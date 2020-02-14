@@ -1,0 +1,4 @@
+(test
+  (name test_utils)
+  (preprocess (pps metapp.utils metapp))
+  (libraries test_framework metapp.utils))

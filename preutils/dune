@@ -1,0 +1,4 @@
+(library
+  (name metapp_preutils)
+  (public_name metapp.preutils)
+  (libraries ocaml-migrate-parsetree compiler-libs stdcompat))
