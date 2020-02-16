@@ -4,7 +4,7 @@ let expression_of_payload (payload : Parsetree.payload) : Parsetree.expression =
       expr
   | _ ->
       Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Single expression expected"
+        "Expression expected"
 
 let structure_of_expression (e : Parsetree.expression) : Parsetree.structure =
   [Ast_helper.Str.eval e]
@@ -55,10 +55,8 @@ let core_type_of_payload (payload : Parsetree.payload) : Parsetree.core_type =
 let loc (txt : 'a) : 'a Location.loc =
   { txt; loc = !Ast_helper.default_loc }
 
-let expression_of_ident (ident : Longident.t) : Parsetree.expression =
-  Ast_helper.Exp.ident (loc ident)
-
-let ident = expression_of_ident
+let ident ?attrs (ident : Longident.t) : Parsetree.expression =
+  Ast_helper.Exp.ident ?attrs (loc ident)
 
 let nolabel arg =
   (Asttypes.Nolabel, arg)
@@ -76,49 +74,174 @@ let apply (f : Parsetree.expression) (args : Parsetree.expression list)
     : Parsetree.expression =
   Ast_helper.Exp.apply f (nolabels args)
 
-let expression_construct (ident : Longident.t)
-    (args : Parsetree.expression list) : Parsetree.expression =
-  let arg =
+module type BaseValueS = sig
+  type t
+
+  val var : ?attrs:Parsetree.attributes -> string -> t
+
+  val of_constant : ?attrs:Parsetree.attributes -> Parsetree.constant -> t
+
+  val force_tuple : ?attrs:Parsetree.attributes -> t list -> t
+
+  val force_construct :
+      ?attrs:Parsetree.attributes -> Ast_helper.lid -> t option -> t
+
+  val record : ?attrs:Parsetree.attributes -> (Longident.t * t) list -> t
+end
+
+module type ValueS = sig
+  include BaseValueS
+
+  val of_int : ?attrs:Parsetree.attributes -> int -> t
+
+  val of_string : ?attrs:Parsetree.attributes -> string -> t
+
+  val of_char : ?attrs:Parsetree.attributes -> char -> t
+
+  val of_unit : ?attrs:Parsetree.attributes -> unit -> t
+
+  val of_bool : ?attrs:Parsetree.attributes -> bool -> t
+
+  val none : ?attrs:Parsetree.attributes -> unit -> t
+
+  val some : ?attrs:Parsetree.attributes -> t -> t
+
+  val of_option : ?attrs:Parsetree.attributes -> t option -> t
+
+  val of_longident : Longident.t -> t
+
+  val construct : ?attrs:Parsetree.attributes -> Longident.t -> t list -> t
+
+  val tuple : ?attrs:Parsetree.attributes -> t list -> t
+
+  val nil : ?attrs:Parsetree.attributes -> unit -> t
+
+  val cons : ?attrs:Parsetree.attributes -> t -> t -> t
+
+  val of_list : ?attrs:Parsetree.attributes -> t list -> t
+end
+
+let unit_ctor = "()"
+
+let none_ctor = "None"
+
+let some_ctor = "Some"
+
+let nil_ctor = "[]"
+
+let cons_ctor = "::"
+
+let longident = Longident.Lident "Longident"
+
+module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
+  include Base
+
+  let of_int ?attrs i =
+    of_constant ?attrs (Ast_helper.Const.int i)
+
+  let of_string ?attrs s =
+    of_constant ?attrs (Ast_helper.Const.string s)
+
+  let of_char ?attrs s =
+    of_constant ?attrs (Ast_helper.Const.char s)
+
+  let of_unit ?attrs () =
+    force_construct ?attrs (loc (Longident.Lident unit_ctor)) None
+
+  let tuple ?attrs (args : t list) : t =
     match args with
-    | [] -> None
-    | [arg] -> Some arg
-    | _ -> Some (Ast_helper.Exp.tuple args) in
-  Ast_helper.Exp.construct (loc ident) arg
+    | [] -> of_unit ?attrs ()
+    | [arg] -> arg
+    | _ -> force_tuple ?attrs args
 
-let construct = expression_construct
+  let construct ?attrs (ident : Longident.t) (args : t list) : t =
+    let arg =
+      match args with
+      | [] -> None
+      | [arg] -> Some arg
+      | _ -> Some (tuple args) in
+    force_construct ?attrs (loc ident) arg
 
-let pattern_construct (ident : Longident.t) (args : Parsetree.pattern list)
-    : Parsetree.pattern =
-  let arg =
-    match args with
-    | [] -> None
-    | [arg] -> Some arg
-    | _ -> Some (Ast_helper.Pat.tuple args) in
-  Ast_helper.Pat.construct (loc ident) arg
+  let of_bool ?attrs b =
+    construct ?attrs (Lident (string_of_bool b)) []
 
-let expression_record (fields : (Longident.t * Parsetree.expression) list)
-    : Parsetree.expression =
-  Ast_helper.Exp.record
-    (List.map (fun (field, value) -> (loc field, value)) fields)
-    None
+  let none ?attrs () =
+    construct ?attrs (Lident none_ctor) []
 
-let pattern_record (fields : (Longident.t * Parsetree.pattern) list)
-    : Parsetree.pattern =
-  Ast_helper.Pat.record
-    (List.map (fun (field, value) -> (loc field, value)) fields)
-    Closed
+  let some ?attrs x =
+    construct ?attrs (Lident some_ctor) [x]
 
-let expression_of_default_loc () : Parsetree.expression =
-  apply (ident (Lident "!")) [ident (Ldot (Lident "Ast_helper", "default_loc"))]
+  let of_option ?attrs opt =
+    match opt with
+    | None -> none ?attrs ()
+    | Some x -> some ?attrs x
 
-let expression_of_loc (quote_txt : 'a -> Parsetree.expression)
-    (loc : 'a Location.loc) : Parsetree.expression =
-  expression_record [
-    (Ldot (Lident "Location", "txt"), quote_txt loc.txt);
-    (Lident "loc", expression_of_default_loc ())]
+  let rec of_longident (ident : Longident.t) : t =
+    match ident with
+    | Ldot (m, v) ->
+        construct (Ldot (longident, "Ldot"))
+          [of_longident m; of_string v]
+    | Lident ident ->
+        construct (Ldot (longident, "Lident")) [of_string ident]
+    | Lapply (f, x) ->
+        construct (Ldot (longident, "Lapply"))
+          [of_longident f; of_longident x]
 
-let expression_of_int (i : int) : Parsetree.expression =
-  Ast_helper.Exp.constant (Ast_helper.Const.int i)
+  let nil ?attrs () =
+    construct ?attrs (Lident nil_ctor) []
+
+  let cons ?attrs hd tl =
+    construct ?attrs (Lident cons_ctor) [hd; tl]
+
+  let rec of_list ?attrs l =
+    match l with
+    | [] -> nil ?attrs ()
+    | hd :: tl -> cons ?attrs hd (of_list tl)
+end
+
+module Exp : ValueS with type t = Parsetree.expression =
+    ExtendValue (struct
+  type t = Parsetree.expression
+
+  let var ?attrs x =
+    ident ?attrs (Lident x)
+
+  let of_constant ?attrs cst =
+    Ast_helper.Exp.constant ?attrs cst
+
+  let force_tuple ?attrs (args : t list) : t =
+    Ast_helper.Exp.tuple ?attrs args
+
+  let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
+    Ast_helper.Exp.construct ?attrs lid args
+
+  let record ?attrs (fields : (Longident.t * t) list) : t =
+    Ast_helper.Exp.record ?attrs
+      (List.map (fun (field, value) -> (loc field, value)) fields)
+      None
+end)
+
+module Pat : ValueS with type t = Parsetree.pattern =
+    ExtendValue (struct
+  type t = Parsetree.pattern
+
+  let var ?attrs x =
+    Ast_helper.Pat.var ?attrs (loc x)
+
+  let of_constant ?attrs cst =
+    Ast_helper.Pat.constant ?attrs cst
+
+  let force_tuple ?attrs (args : t list) : t =
+    Ast_helper.Pat.tuple ?attrs args
+
+  let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
+    Ast_helper.Pat.construct ?attrs lid args
+
+  let record ?attrs (fields : (Longident.t * t) list) : t =
+    Ast_helper.Pat.record ?attrs
+      (List.map (fun (field, value) -> (loc field, value)) fields)
+      Closed
+end)
 
 let int_of_expression (e : Parsetree.expression) =
   Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
@@ -135,13 +258,10 @@ let int_of_expression (e : Parsetree.expression) =
         "Integer value expected"
 
 let payload_of_int (i : int) : Parsetree.payload =
-  payload_of_expression (expression_of_int i)
+  payload_of_expression (Exp.of_int i)
 
 let int_of_payload (payload : Parsetree.payload) : int =
   int_of_expression (expression_of_payload payload)
-
-let expression_of_string (s : string) : Parsetree.expression =
-  Ast_helper.Exp.constant (Ast_helper.Const.string s)
 
 let string_of_expression (e : Parsetree.expression) =
   Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
@@ -154,33 +274,6 @@ let string_of_expression (e : Parsetree.expression) =
 
 let string_of_payload (payload : Parsetree.payload) : string =
   string_of_expression (expression_of_payload payload)
-
-let expression_of_char (c : char) : Parsetree.expression =
-  Ast_helper.Exp.constant (Ast_helper.Const.char c)
-
-let unit_cstr = "()"
-
-let expression_of_unit () : Parsetree.expression =
-  construct (Lident unit_cstr) []
-
-let pattern_of_unit () : Parsetree.pattern =
-  pattern_construct (Lident unit_cstr) []
-
-let unit () = expression_of_unit ()
-
-let none_cstr = "None"
-
-let some_cstr = "Some"
-
-let expression_none = construct (Lident none_cstr) []
-
-let expression_some item = construct (Lident some_cstr) [item]
-
-let pattern_none = pattern_construct (Lident none_cstr) []
-
-let pattern_some item = pattern_construct (Lident some_cstr) [item]
-
-let expression_of_bool b = construct (Lident (string_of_bool b)) []
 
 let bool_of_expression (e : Parsetree.expression) : bool =
   Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
@@ -195,8 +288,6 @@ let bool_of_expression (e : Parsetree.expression) : bool =
 
 let bool_of_payload (payload : Parsetree.payload) : bool =
   bool_of_expression (expression_of_payload payload)
-
-let bool = expression_of_bool
 
 let pair_of_expression (e : Parsetree.expression)
     : Parsetree.expression * Parsetree.expression =
@@ -229,7 +320,7 @@ let mutate f ref =
 
 let sequence (list : Parsetree.expression list) : Parsetree.expression =
   match list with
-  | [] -> unit ()
+  | [] -> Exp.of_unit ()
   | [singleton] -> singleton
   | hd :: tl ->
       List.fold_left Ast_helper.Exp.sequence hd tl
@@ -243,3 +334,11 @@ let include_structure (structure : Parsetree.structure)
     : Parsetree.structure_item =
   Ast_helper.Str.include_ (Ast_helper.Incl.mk
     (Ast_helper.Mod.structure structure))
+
+let bool = Exp.of_bool
+
+let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
+  Location.mkloc (Longident.Lident str.txt) str.loc
+
+let map_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b Location.loc =
+  { l with txt = f l.txt }

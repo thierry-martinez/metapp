@@ -66,7 +66,7 @@ let filter : Ast_mapper.mapper =
     match p.ppat_desc with
     | Ppat_tuple args ->
         begin match List.filter check_pat args with
-        | [] -> pattern_of_unit ()
+        | [] -> Pat.of_unit ()
         | [singleton] -> singleton
         | args -> { p with ppat_desc = Ppat_tuple args }
         end
@@ -124,7 +124,7 @@ let filter : Ast_mapper.mapper =
         { e with pexp_desc = Pexp_try (e, List.filter check_case cases)}
     | Pexp_tuple args ->
         begin match List.filter check_expr args with
-        | [] -> unit ()
+        | [] -> Exp.of_unit ()
         | [singleton] -> singleton
         | args -> { e with pexp_desc = Pexp_tuple args }
         end
@@ -180,3 +180,40 @@ let filter : Ast_mapper.mapper =
           Psig_type (rec_flag, List.filter check_type_declaration declarations)}
     | _ -> item in
   { Ast_mapper.default_mapper with pat; expr; structure_item; signature_item }
+
+[%%meta Metapp_preutils.include_structure (
+  if Sys.ocaml_version >= "4.08.0" then [%str
+type sig_type = {
+    id : Ident.t;
+    decl : Types.type_declaration;
+    rec_status : Types.rec_status;
+    visibility : Types.visibility;
+  }
+
+let destruct_sig_type (item : Types.signature_item) : sig_type option =
+  match item with
+  | Sig_type (id, decl, rec_status, visibility) ->
+      Some { id; decl; rec_status; visibility }
+  | _ -> None]
+else [%str
+type sig_type = {
+    id : Ident.t;
+    decl : Types.type_declaration;
+    rec_status : Types.rec_status;
+  }
+
+let destruct_sig_type (item : Types.signature_item) : sig_type option =
+  match item with
+  | Sig_type (id, decl, rec_status ) ->
+      Some { id; decl; rec_status }
+  | _ -> None])]
+
+module Typ = struct
+  let poly names ty =
+    let names =
+      [%meta if Sys.ocaml_version >= "4.05.0" then [%e
+        List.map loc names]
+      else [%e
+        names]] in
+    Ast_helper.Typ.poly names ty
+end

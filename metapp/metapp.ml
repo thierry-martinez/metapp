@@ -17,13 +17,13 @@ let deref (e : Parsetree.expression) : Parsetree.expression =
   Metapp_preutils.apply (Metapp_preutils.ident (Lident "!")) [e]
 
 let array_get (a : Parsetree.expression) (index : int) : Parsetree.expression =
-  let i = Metapp_preutils.expression_of_int index in
+  let i = Metapp_preutils.Exp.of_int index in
   Metapp_preutils.apply (Metapp_preutils.ident (Ldot (Lident "Array", "get")))
     [a; i]
 
 let array_set (a : Parsetree.expression) (index : int)
     (v : Parsetree.expression) : Parsetree.expression =
-  let i = Metapp_preutils.expression_of_int index in
+  let i = Metapp_preutils.Exp.of_int index in
   Metapp_preutils.apply (Metapp_preutils.ident (Ldot (Lident "Array", "set")))
     [a; i; v]
 
@@ -32,13 +32,14 @@ type instruction =
   | Package of string
   | Directory of string
   | Flags of string list
-  | Expression of Parsetree.expression
+  | Exp of Parsetree.expression
   | Definition of Parsetree.structure
+  | Plainsource
 
 let get_expression (instruction : instruction Location.loc)
     : Parsetree.expression =
   match instruction.txt with
-  | Expression expression -> expression
+  | Exp expression -> expression
   | _ ->
       Location.raise_errorf ~loc:instruction.loc
         "Definitions are only allowed at top-level"
@@ -132,6 +133,9 @@ let holes_mapper ?(def : (instruction Location.loc -> unit) option)
           (Flags (List.map Metapp_preutils.string_of_expression
             (Metapp_preutils.list_of_expression
               (Metapp_preutils.expression_of_payload payload)))));
+        Metapp_preutils.include_structure []
+    | Pstr_extension (({ txt = "metaplainsource"; _ }, _payload), _) ->
+        Stdcompat.Option.get def (Metapp_preutils.loc Plainsource);
         Metapp_preutils.include_structure []
     | _ -> Ast_mapper.default_mapper.structure_item mapper item in
   { Ast_mapper.default_mapper with expr; pat; structure_item }
@@ -273,14 +277,14 @@ let rec extract_subexpressions (holes : MutableHoles.t)
       get_mapper mapper mapper hole in
     let index = Metapp_preutils.update (Accu.add (fill, escape)) accu in
     Ast_helper.Exp.let_ Nonrecursive
-      [Ast_helper.Vb.mk (Metapp_preutils.pattern_record [
+      [Ast_helper.Vb.mk (Metapp_preutils.Pat.record [
          (Ldot (Ldot (metapp_api, "ArrayHole"), "context"),
            Ast_helper.Pat.var (Metapp_preutils.loc context_var));
            (Lident "fill", Ast_helper.Pat.var (Metapp_preutils.loc fill_var))])
         (array_get (field_get (context_get sub_holes_field) field_name) index)]
       (Metapp_preutils.sequence (List.map get_expression escape.instructions @
         [Metapp_preutils.apply (Metapp_preutils.ident (Lident fill_var))
-          [Metapp_preutils.unit ()]])) in
+          [Metapp_preutils.Exp.of_unit ()]])) in
   let expr (mapper : Ast_mapper.mapper) (e : Parsetree.expression)
       : Parsetree.expression =
     Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
@@ -329,15 +333,15 @@ and extract_holes () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
       Metapp_preutils.update (Accu.add !Ast_helper.default_loc) holes_accu in
     let hole_field = field_get (context_get holes_field) field in
     let extracted_expr =
-      Metapp_preutils.expression_some
+      Metapp_preutils.Exp.some
         (Metapp_preutils.apply
           (Metapp_preutils.ident
             (Ldot (Lident "Ast_helper", "with_default_loc")))
           [array_get (field_get (context_get loc_field) field) index;
             Ast_helper.Exp.function_
-              [Ast_helper.Exp.case (Metapp_preutils.pattern_of_unit ())
+              [Ast_helper.Exp.case (Metapp_preutils.Pat.of_unit ())
                 extracted_expr]]) in
-    push (Metapp_preutils.loc (Expression
+    push (Metapp_preutils.loc (Exp
       (array_set hole_field index extracted_expr)));
     extension_of_index index in
   let expr (payload : Parsetree.payload) : Parsetree.expression =
@@ -422,18 +426,21 @@ type options = {
     packages : string list;
     directories : string list;
     flags : string list;
+    plainsource : bool;
   }
 
 let empty_options = {
   packages = [];
   directories = [];
-  flags = []
+  flags = [];
+  plainsource = false;
 }
 
-let rev_options ({ packages; directories; flags } : options) = {
+let rev_options ({ packages; directories; flags; plainsource } : options) = {
   packages = List.rev packages;
   directories = List.rev directories;
   flags = List.rev flags;
+  plainsource;
 }
 
 let compile (options : options) (source_filename : string)
@@ -482,16 +489,24 @@ let compile (options : options) (source_filename : string)
 
 (* Code taken from pparse.ml (adapted for a channel instead of a filename to use
    open_temp_file), because Pparse.write_ast is introduced in OCaml 4.04.0. *)
-let write_ast (channel : out_channel) (structure : Parsetree.structure) : unit =
-  output_string channel Config.ast_impl_magic_number;
-  output_value channel !Location.input_name;
-  output_value channel structure
+let write_ast (plainsource : bool) (channel : out_channel)
+    (structure : Parsetree.structure) : unit =
+  if plainsource then
+    Format.fprintf (Format.formatter_of_out_channel channel)
+      "%a@." Pprintast.structure structure
+  else
+    begin
+      output_string channel Config.ast_impl_magic_number;
+      output_value channel !Location.input_name;
+      output_value channel structure
+    end
 
 let compile_and_load (options : options) (structure : Parsetree.structure)
   : unit =
   let (source_filename, channel) = Filename.open_temp_file "metapp" ".ml" in
   Stdcompat.Fun.protect (fun () ->
-    Stdcompat.Fun.protect (fun () -> write_ast channel structure)
+    Stdcompat.Fun.protect (fun () ->
+      write_ast options.plainsource channel structure)
       ~finally:(fun () -> close_out channel);
     let object_filename =
       Stdcompat.Filename.remove_extension source_filename ^
@@ -512,16 +527,16 @@ let structure (_mapper : Ast_mapper.mapper) (s : Parsetree.structure)
     (instruction : instruction Location.loc)
       : Parsetree.structure * options =
     match instruction.txt with
-    | Expression expr ->
+    | Exp expr ->
         let item =
           Ast_helper.Str.value Nonrecursive
-            [Ast_helper.Vb.mk (Metapp_preutils.pattern_of_unit ())
+            [Ast_helper.Vb.mk (Metapp_preutils.Pat.of_unit ())
               (Ast_helper.Exp.match_ (deref (Metapp_preutils.ident
                 (Ldot (metapp_api, "top_context"))))
-              [Ast_helper.Exp.case Metapp_preutils.pattern_none
+              [Ast_helper.Exp.case (Metapp_preutils.Pat.none ())
                 (Ast_helper.Exp.assert_
-                  (Metapp_preutils.expression_of_bool false));
-                Ast_helper.Exp.case (Metapp_preutils.pattern_some
+                  (Metapp_preutils.Exp.of_bool false));
+                Ast_helper.Exp.case (Metapp_preutils.Pat.some
                   (Ast_helper.Pat.var (Metapp_preutils.loc context_var)))
                   expr])] in
         (item :: accu_parsetree, accu_options)
@@ -548,7 +563,11 @@ let structure (_mapper : Ast_mapper.mapper) (s : Parsetree.structure)
     | Flags flags ->
         (accu_parsetree,
           { accu_options with
-            flags = List.rev_append flags accu_options.flags }) in
+            flags = List.rev_append flags accu_options.flags })
+    | Plainsource ->
+        (accu_parsetree,
+          { accu_options with
+            plainsource = true }) in
   let (accu_parsetree, accu_options) =
     List.fold_left make_instruction ([], empty_options) instructions in
   let parsetree = List.rev accu_parsetree in
