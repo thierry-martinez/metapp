@@ -11,7 +11,7 @@
 (bug_reports "https://github.com/thierry-martinez/metapp")
 (documentation "https://github.com/thierry-martinez/metapp")
 
-(PACKAGE
+(package
  (name metapp)
  (synopsis "Meta-preprocessor for OCaml")
  (description "\
