@@ -35,6 +35,14 @@ let rec extract_first (p : 'a -> 'b option) (l : 'a list)
           | Some (b, tl) -> Some (b, hd :: tl)
           | None -> None
 
+let chop_attr (name : string) (attributes : Parsetree.attributes)
+    : (Parsetree.attribute * Parsetree.attributes) option =
+  extract_first (fun attribute ->
+    if String.equal (attr_name attribute).txt name then
+      Some attribute
+    else
+      None) attributes
+
 let filter : Ast_mapper.mapper =
   let check_attr (attributes : Parsetree.attributes) =
     match find_attr "when" attributes with
@@ -212,7 +220,7 @@ module Typ = struct
   let poly names ty =
     let names =
       [%meta if Sys.ocaml_version >= "4.05.0" then [%e
-        List.map loc names]
+        List.map mkloc names]
       else [%e
         names]] in
     Ast_helper.Typ.poly names ty
