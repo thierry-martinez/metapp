@@ -90,6 +90,8 @@ module type BaseValueS = sig
   val force_construct :
       ?attrs:Parsetree.attributes -> Ast_helper.lid -> t option -> t
 
+  val array : ?attrs:Parsetree.attributes -> t list -> t
+
   val record : ?attrs:Parsetree.attributes -> (Longident.t * t) list -> t
 
   val variant : ?attrs:Parsetree.attributes -> string -> t option -> t
@@ -133,7 +135,7 @@ module type ValueS = sig
 
   val cons : ?attrs:Parsetree.attributes -> ?prefix:Longident.t -> t -> t -> t
 
-  val of_list :
+  val list :
       ?attrs:Parsetree.attributes -> ?prefix:Longident.t -> t list -> t
 end
 
@@ -214,10 +216,10 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
   let cons ?attrs ?prefix hd tl =
     construct ?attrs (make_ident ?prefix cons_ctor) [hd; tl]
 
-  let rec of_list ?attrs ?prefix l =
+  let rec list ?attrs ?prefix l =
     match l with
     | [] -> nil ?attrs ?prefix ()
-    | hd :: tl -> cons ?attrs ?prefix hd (of_list ?prefix tl)
+    | hd :: tl -> cons ?attrs ?prefix hd (list ?prefix tl)
 end
 
 module Exp : ValueS with type t = Parsetree.expression =
@@ -250,6 +252,9 @@ module Exp : ValueS with type t = Parsetree.expression =
 
   let variant ?attrs (ctor : string) (arg : t option) : t =
     Ast_helper.Exp.variant ?attrs ctor arg
+
+  let array ?attrs (items : t list) : t =
+    Ast_helper.Exp.array ?attrs items
 
   let choice (e : unit -> Parsetree.expression) (_p : unit ->Parsetree.pattern)
       : t =
@@ -296,6 +301,9 @@ module Pat : ValueS with type t = Parsetree.pattern =
 
   let variant ?attrs (ctor : string) (arg : t option) : t =
     Ast_helper.Pat.variant ?attrs ctor arg
+
+  let array ?attrs (items : t list) : t =
+    Ast_helper.Pat.array ?attrs items
 
   let choice (_e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
       : t =
@@ -373,6 +381,11 @@ module Value : ValueS with type t = value = ExtendValue (struct
     let arg_exp, arg_pat = split_option arg in
     { exp = Exp.variant ?attrs ctor arg_exp;
       pat = Pat.variant ?attrs ctor arg_pat; }
+
+  let array ?attrs (args : t list) : t =
+    let args_exp, args_pat = split args in
+    { exp = Exp.array ?attrs args_exp;
+      pat = Pat.array ?attrs args_pat; }
 
   let choice (e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
       : t =
