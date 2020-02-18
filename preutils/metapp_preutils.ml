@@ -96,6 +96,8 @@ module type BaseValueS = sig
 
   val variant : ?attrs:Parsetree.attributes -> string -> t option -> t
 
+  val lazy_ :  ?attrs:Parsetree.attributes -> t -> t
+
   val choice :
       (unit -> Parsetree.expression) -> (unit -> Parsetree.pattern) -> t
 
@@ -123,7 +125,7 @@ module type ValueS = sig
 
   val some : ?attrs:Parsetree.attributes -> t -> t
 
-  val of_option : ?attrs:Parsetree.attributes -> t option -> t
+  val option : ?attrs:Parsetree.attributes -> t option -> t
 
   val of_longident : Longident.t -> t
 
@@ -194,7 +196,7 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
   let some ?attrs x =
     construct ?attrs (Lident some_ctor) [x]
 
-  let of_option ?attrs opt =
+  let option ?attrs opt =
     match opt with
     | None -> none ?attrs ()
     | Some x -> some ?attrs x
@@ -245,6 +247,9 @@ module Exp : ValueS with type t = Parsetree.expression =
   let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
     Ast_helper.Exp.construct ?attrs lid args
 
+  let array ?attrs (items : t list) : t =
+    Ast_helper.Exp.array ?attrs items
+
   let record ?attrs (fields : (Longident.t * t) list) : t =
     Ast_helper.Exp.record ?attrs
       (List.map (fun (field, value) -> (mkloc field, value)) fields)
@@ -253,8 +258,8 @@ module Exp : ValueS with type t = Parsetree.expression =
   let variant ?attrs (ctor : string) (arg : t option) : t =
     Ast_helper.Exp.variant ?attrs ctor arg
 
-  let array ?attrs (items : t list) : t =
-    Ast_helper.Exp.array ?attrs items
+  let lazy_ ?attrs (arg : t) : t =
+    Ast_helper.Exp.lazy_ ?attrs arg
 
   let choice (e : unit -> Parsetree.expression) (_p : unit ->Parsetree.pattern)
       : t =
@@ -299,11 +304,14 @@ module Pat : ValueS with type t = Parsetree.pattern =
       (List.map (fun (field, value) -> (mkloc field, value)) fields)
       Closed
 
+  let array ?attrs (items : t list) : t =
+    Ast_helper.Pat.array ?attrs items
+
   let variant ?attrs (ctor : string) (arg : t option) : t =
     Ast_helper.Pat.variant ?attrs ctor arg
 
-  let array ?attrs (items : t list) : t =
-    Ast_helper.Pat.array ?attrs items
+  let lazy_ ?attrs (arg : t) : t =
+    Ast_helper.Pat.lazy_ ?attrs arg
 
   let choice (_e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
       : t =
@@ -372,6 +380,11 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.force_construct ?attrs lid args_exp;
       pat = Pat.force_construct ?attrs lid args_pat; }
 
+  let array ?attrs (args : t list) : t =
+    let args_exp, args_pat = split args in
+    { exp = Exp.array ?attrs args_exp;
+      pat = Pat.array ?attrs args_pat; }
+
   let record ?attrs (fields : (Longident.t * t) list) : t =
     let fields_exp, fields_pat = split_assoc fields in
     { exp = Exp.record ?attrs fields_exp;
@@ -382,10 +395,9 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.variant ?attrs ctor arg_exp;
       pat = Pat.variant ?attrs ctor arg_pat; }
 
-  let array ?attrs (args : t list) : t =
-    let args_exp, args_pat = split args in
-    { exp = Exp.array ?attrs args_exp;
-      pat = Pat.array ?attrs args_pat; }
+  let lazy_ ?attrs (arg : t) : t =
+    { exp = Exp.lazy_ ?attrs arg.exp;
+      pat = Pat.lazy_ ?attrs arg.pat; }
 
   let choice (e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
       : t =
