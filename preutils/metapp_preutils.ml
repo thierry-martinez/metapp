@@ -308,7 +308,7 @@ type value = {
     pat : Parsetree.pattern;
   }
 
-module Val : ValueS with type t = value = ExtendValue (struct
+module Value : ValueS with type t = value = ExtendValue (struct
   type t = value
 
   let rec split (l : value list)

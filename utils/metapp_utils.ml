@@ -1,28 +1,5 @@
 include Metapp_preutils
 
-let attr_name (attribute : Parsetree.attribute) : string Location.loc =
-  [%meta if Sys.ocaml_version < "4.08.0" then
-    [%e fst attribute]
-  else
-    [%e attribute.attr_name]]
-
-let attr_payload (attribute : Parsetree.attribute) : Parsetree.payload =
-  [%meta if Sys.ocaml_version < "4.08.0" then
-    [%e snd attribute]
-  else
-    [%e attribute.attr_payload]]
-
-let attr_loc (attribute : Parsetree.attribute) : Location.t =
-  [%meta if Sys.ocaml_version < "4.08.0" then
-    [%e (fst attribute).loc]
-  else
-    [%e attribute.attr_loc]]
-
-let find_attr (name : string) (attributes : Parsetree.attributes)
-    : Parsetree.attribute option =
-  Stdcompat.List.find_opt (fun attribute ->
-    String.equal (attr_name attribute).txt name) attributes
-
 let rec extract_first (p : 'a -> 'b option) (l : 'a list)
     : ('b * 'a list) option =
   match l with
@@ -35,19 +12,68 @@ let rec extract_first (p : 'a -> 'b option) (l : 'a list)
           | Some (b, tl) -> Some (b, hd :: tl)
           | None -> None
 
-let chop_attr (name : string) (attributes : Parsetree.attributes)
-    : (Parsetree.attribute * Parsetree.attributes) option =
-  extract_first (fun attribute ->
-    if String.equal (attr_name attribute).txt name then
-      Some attribute
+module Attr = struct
+  let mk (name : Ast_helper.str) (payload : Parsetree.payload) =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e (name, payload)]
     else
-      None) attributes
+      [%e Ast_helper.Attr.mk name payload]]
+
+  let name (attribute : Parsetree.attribute) : string Location.loc =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e fst attribute]
+    else
+      [%e attribute.attr_name]]
+
+  let payload (attribute : Parsetree.attribute) : Parsetree.payload =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e snd attribute]
+    else
+      [%e attribute.attr_payload]]
+
+  let to_loc (attribute : Parsetree.attribute) : Location.t =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e (fst attribute).loc]
+    else
+      [%e attribute.attr_loc]]
+
+  let find (attr_name : string) (attributes : Parsetree.attributes)
+      : Parsetree.attribute option =
+    Stdcompat.List.find_opt (fun attribute ->
+      String.equal (name attribute).txt attr_name) attributes
+
+  let chop (attr_name : string) (attributes : Parsetree.attributes)
+      : (Parsetree.attribute * Parsetree.attributes) option =
+    extract_first (fun attribute ->
+      if String.equal (name attribute).txt attr_name then
+        Some attribute
+      else
+        None) attributes
+end
+
+module Md = struct
+  let mk (mod_name : string option Location.loc)
+      (s : Parsetree.module_type) : Parsetree.module_declaration =
+    [%meta if Sys.ocaml_version < "4.10.0" then
+      [%e Ast_helper.Md.mk (map_loc Stdcompat.Option.get mod_name) s]
+    else
+      [%e Ast_helper.Md.mk mod_name s]]
+end
+
+module Mb = struct
+  let mk (mod_name : string option Location.loc)
+      (s : Parsetree.module_expr) : Parsetree.module_binding =
+    [%meta if Sys.ocaml_version < "4.10.0" then
+      [%e Ast_helper.Mb.mk (map_loc Stdcompat.Option.get mod_name) s]
+    else
+      [%e Ast_helper.Mb.mk mod_name s]]
+end
 
 let filter : Ast_mapper.mapper =
   let check_attr (attributes : Parsetree.attributes) =
-    match find_attr "when" attributes with
+    match Attr.find "when" attributes with
     | None -> true
-    | Some attr -> bool_of_payload (attr_payload attr) in
+    | Some attr -> bool_of_payload (Attr.payload attr) in
   let rec check_pat (p : Parsetree.pattern) =
     begin match p.ppat_desc with
     | Ppat_constraint (p, _) -> check_pat p
