@@ -51,11 +51,18 @@ module Attr = struct
         None) attributes
 end
 
+let get_mod_name mod_ name =
+  match name with
+  | None ->
+      invalid_arg (Printf.sprintf
+        "%s.mk: anonymous modules are not supported with OCaml <4.10.0" mod_)
+  | Some name -> name
+
 module Md = struct
   let mk (mod_name : string option Location.loc)
       (s : Parsetree.module_type) : Parsetree.module_declaration =
     [%meta if Sys.ocaml_version < "4.10.0" then
-      [%e Ast_helper.Md.mk (map_loc Stdcompat.Option.get mod_name) s]
+      [%e Ast_helper.Md.mk (map_loc (get_mod_name "Md") mod_name) s]
     else
       [%e Ast_helper.Md.mk mod_name s]]
 end
@@ -64,7 +71,7 @@ module Mb = struct
   let mk (mod_name : string option Location.loc)
       (s : Parsetree.module_expr) : Parsetree.module_binding =
     [%meta if Sys.ocaml_version < "4.10.0" then
-      [%e Ast_helper.Mb.mk (map_loc Stdcompat.Option.get mod_name) s]
+      [%e Ast_helper.Mb.mk (map_loc (get_mod_name "Mb") mod_name) s]
     else
       [%e Ast_helper.Mb.mk mod_name s]]
 end
