@@ -64,15 +64,15 @@ let nolabel arg =
 let nolabels args =
   List.map nolabel args
 
-let apply_labels (f : Parsetree.expression)
+let apply_labels ?attrs (f : Parsetree.expression)
     (labels : (string * Parsetree.expression) list)
     (args : Parsetree.expression list) : Parsetree.expression =
-  Ast_helper.Exp.apply f
+  Ast_helper.Exp.apply ?attrs f
     (List.map (fun (l, e) -> (Asttypes.Labelled l, e)) labels @ nolabels args)
 
-let apply (f : Parsetree.expression) (args : Parsetree.expression list)
+let apply ?attrs (f : Parsetree.expression) (args : Parsetree.expression list)
     : Parsetree.expression =
-  Ast_helper.Exp.apply f (nolabels args)
+  Ast_helper.Exp.apply ?attrs f (nolabels args)
 
 module type BaseValueS = sig
   type t
@@ -82,6 +82,8 @@ module type BaseValueS = sig
   val var : ?attrs:Parsetree.attributes -> string -> t
 
   val of_constant : ?attrs:Parsetree.attributes -> Parsetree.constant -> t
+
+  val of_bytes : ?attrs:Parsetree.attributes -> bytes -> t
 
   val force_tuple : ?attrs:Parsetree.attributes -> t list -> t
 
@@ -231,6 +233,10 @@ module Exp : ValueS with type t = Parsetree.expression =
   let of_constant ?attrs cst =
     Ast_helper.Exp.constant ?attrs cst
 
+  let of_bytes ?attrs b =
+    apply ?attrs (ident (Ldot (Lident "Bytes", "of_string")))
+      [of_constant (Ast_helper.Const.string (Bytes.to_string b))]
+
   let force_tuple ?attrs (args : t list) : t =
     Ast_helper.Exp.tuple ?attrs args
 
@@ -273,6 +279,9 @@ module Pat : ValueS with type t = Parsetree.pattern =
 
   let of_constant ?attrs cst =
     Ast_helper.Pat.constant ?attrs cst
+
+  let of_bytes ?attrs:_ _b =
+    failwith "Pat.of_bytes: bytes cannot be turned into patterns"
 
   let force_tuple ?attrs (args : t list) : t =
     Ast_helper.Pat.tuple ?attrs args
@@ -341,6 +350,9 @@ module Value : ValueS with type t = value = ExtendValue (struct
 
   let of_constant ?attrs cst =
     { exp = Exp.of_constant ?attrs cst; pat = Pat.of_constant ?attrs cst }
+
+  let of_bytes ?attrs b =
+    { exp = Exp.of_bytes ?attrs b; pat = Pat.of_bytes ?attrs b }
 
   let force_tuple ?attrs (args : t list) : t =
     let args_exp, args_pat = split args in
