@@ -60,13 +60,13 @@ including tuples, function applications, arrays, etc.
     type t =
     | A of int
     | B of int * int
-        [@if [%meta Metapp_utils.Exp.of_bool Sys.ocaml_version >= 4.04]]
+        [@if [%meta Metapp_utils.Exp.of_bool (Sys.ocaml_version >= 4.04)]]
     ...
 
     match (v: t) with
     | A x -> something x
     | B (y,z)
-        [@if [%meta Metapp_utils.Exp.of_bool Sys.ocaml_version >= 4.04]] ->
+        [@if [%meta Metapp_utils.Exp.of_bool (Sys.ocaml_version >= 4.04)]] ->
         something' y z
     ... ])]
 ```
