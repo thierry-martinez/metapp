@@ -2,7 +2,7 @@
 
 `metapp` is a PPX rewriter that provides a `[%meta ...]` extension,
 where the dots `...` are arbitrary OCaml expressions that are
-substituted at compile-time by the AST nodes they evaluate to.
+substituted at compile-time by the AST nodes they evaluate into.
 These expressions build AST nodes either by quoting some code directly,
 or by using `compiler-libs` ([`Parsetree`], [`Ast_helper`], ...).
 
