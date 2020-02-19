@@ -1,3 +1,91 @@
+(** {1 Coercions} *)
+
+let int_of_expression (e : Parsetree.expression) : int =
+  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+  match
+    match e.pexp_desc with
+    | Pexp_constant (Pconst_integer (value, _)) ->
+        Stdcompat.int_of_string_opt value
+    | _ ->
+        None
+  with
+  | Some result -> result
+  | None ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "Integer value expected"
+
+let string_of_expression (e : Parsetree.expression) : string =
+  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+  match e.pexp_desc with
+  | Pexp_constant (Pconst_string (value, _)) ->
+      value
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "String value expected"
+
+let string_of_arbitrary_expression (expression : Parsetree.expression)
+    : string =
+  match expression with
+  | { pexp_desc = Pexp_constant (Pconst_string (s, _)); _ } -> s
+  | _ ->
+      Format.asprintf "%a" Pprintast.expression expression
+
+let bool_of_expression (e : Parsetree.expression) : bool =
+  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+  match e.pexp_desc with
+  | Pexp_construct ({ txt = Lident "false"; _ }, None) ->
+      false
+  | Pexp_construct ({ txt = Lident "true"; _ }, None) ->
+      true
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "Boolean value expected"
+
+let pair_of_expression (e : Parsetree.expression)
+    : Parsetree.expression * Parsetree.expression =
+  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+  match e.pexp_desc with
+  | Pexp_tuple [a; b] -> (a, b)
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "Pair expected"
+
+let rec list_of_expression (e : Parsetree.expression)
+    : Parsetree.expression list =
+  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+  match e.pexp_desc with
+  | Pexp_construct ({ txt = Lident "[]"; _ }, None) -> []
+  | Pexp_construct ({ txt = Lident "::"; _ }, Some pair) ->
+      let (hd, tl) = pair_of_expression pair in
+      hd :: list_of_expression tl
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "List expected"
+
+let list_of_tuple (e : Parsetree.expression) : Parsetree.expression list =
+  match e.pexp_desc with
+  | Pexp_tuple list -> list
+  | Pexp_construct ({ txt = Lident "()"; _}, None) -> []
+  | _ -> [e]
+
+let structure_of_expression (e : Parsetree.expression) : Parsetree.structure =
+  [Ast_helper.Str.eval e]
+
+let include_signature (signature : Parsetree.signature)
+    : Parsetree.signature_item =
+  Ast_helper.Sig.include_ (Ast_helper.Incl.mk
+    (Ast_helper.Mty.signature signature))
+
+let include_structure (structure : Parsetree.structure)
+    : Parsetree.structure_item =
+  Ast_helper.Str.include_ (Ast_helper.Incl.mk
+    (Ast_helper.Mod.structure structure))
+
+let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
+  Location.mkloc (Longident.Lident str.txt) str.loc
+
+(** {1 Payload extraction} *)
+
 let expression_of_payload (payload : Parsetree.payload) : Parsetree.expression =
   match payload with
   | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
@@ -5,9 +93,6 @@ let expression_of_payload (payload : Parsetree.payload) : Parsetree.expression =
   | _ ->
       Location.raise_errorf ~loc:!Ast_helper.default_loc
         "Expression expected"
-
-let structure_of_expression (e : Parsetree.expression) : Parsetree.structure =
-  [Ast_helper.Str.eval e]
 
 let payload_of_expression (e : Parsetree.expression) : Parsetree.payload =
   PStr (structure_of_expression e)
@@ -52,11 +137,37 @@ let core_type_of_payload (payload : Parsetree.payload) : Parsetree.core_type =
   | _ ->
       Location.raise_errorf ~loc:!Ast_helper.default_loc "Type expected"
 
+let int_of_payload (payload : Parsetree.payload) : int =
+  int_of_expression (expression_of_payload payload)
+
+let string_of_payload (payload : Parsetree.payload) : string =
+  string_of_expression (expression_of_payload payload)
+
+let bool_of_payload (payload : Parsetree.payload) : bool =
+  bool_of_expression (expression_of_payload payload)
+
+(** {1 Location management} *)
+
 let mkloc (txt : 'a) : 'a Location.loc =
   { txt; loc = !Ast_helper.default_loc }
 
+let map_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b Location.loc =
+  Ast_helper.with_default_loc l.loc (fun () -> { l with txt = f l.txt })
+
+let with_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b =
+  Ast_helper.with_default_loc l.loc (fun () -> f l.txt)
+
+(** {1 Constructing identifiers } *)
+
+let make_ident ?(prefix : Longident.t option) (s : string) : Longident.t =
+  match prefix with
+  | None -> Lident s
+  | Some prefix -> Ldot (prefix, s)
+
 let ident ?attrs (ident : Longident.t) : Parsetree.expression =
   Ast_helper.Exp.ident ?attrs (mkloc ident)
+
+(** {1 Constructing function application} *)
 
 let nolabel arg =
   (Asttypes.Nolabel, arg)
@@ -64,15 +175,13 @@ let nolabel arg =
 let nolabels args =
   List.map nolabel args
 
-let apply_labels ?attrs (f : Parsetree.expression)
-    (labels : (string * Parsetree.expression) list)
+let apply ?attrs (f : Parsetree.expression)
+    ?(labels : (string * Parsetree.expression) list = [])
     (args : Parsetree.expression list) : Parsetree.expression =
   Ast_helper.Exp.apply ?attrs f
     (List.map (fun (l, e) -> (Asttypes.Labelled l, e)) labels @ nolabels args)
 
-let apply ?attrs (f : Parsetree.expression) (args : Parsetree.expression list)
-    : Parsetree.expression =
-  Ast_helper.Exp.apply ?attrs f (nolabels args)
+(** {1 Generic signature for expressions and patterns} *)
 
 type 'a mapper_item = Ast_mapper.mapper -> 'a -> 'a
 
@@ -166,11 +275,6 @@ let nil_ctor = "[]"
 let cons_ctor = "::"
 
 let longident = Longident.Lident "Longident"
-
-let make_ident ?(prefix : Longident.t option) (s : string) : Longident.t =
-  match prefix with
-  | None -> Lident s
-  | Some prefix -> Ldot (prefix, s)
 
 module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
   include Base
@@ -463,80 +567,12 @@ module Value : ValueS with type t = value = ExtendValue (struct
     failwith "value cannot be obtained from payload"
 end)
 
-let int_of_expression (e : Parsetree.expression) =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match
-    match e.pexp_desc with
-    | Pexp_constant (Pconst_integer (value, _)) ->
-        Stdcompat.int_of_string_opt value
-    | _ ->
-        None
-  with
-  | Some result -> result
-  | None ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Integer value expected"
+(** {1 Payload construction (ctd) *)
 
 let payload_of_int (i : int) : Parsetree.payload =
   payload_of_expression (Exp.of_int i)
 
-let int_of_payload (payload : Parsetree.payload) : int =
-  int_of_expression (expression_of_payload payload)
-
-let string_of_expression (e : Parsetree.expression) =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match e.pexp_desc with
-  | Pexp_constant (Pconst_string (value, _)) ->
-      value
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "String value expected"
-
-let string_of_payload (payload : Parsetree.payload) : string =
-  string_of_expression (expression_of_payload payload)
-
-let bool_of_expression (e : Parsetree.expression) : bool =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match e.pexp_desc with
-  | Pexp_construct ({ txt = Lident "false"; _ }, None) ->
-      false
-  | Pexp_construct ({ txt = Lident "true"; _ }, None) ->
-      true
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Boolean value expected"
-
-let bool_of_payload (payload : Parsetree.payload) : bool =
-  bool_of_expression (expression_of_payload payload)
-
-let pair_of_expression (e : Parsetree.expression)
-    : Parsetree.expression * Parsetree.expression =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match e.pexp_desc with
-  | Pexp_tuple [a; b] -> (a, b)
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Pair expected"
-
-let rec list_of_expression (e : Parsetree.expression)
-    : Parsetree.expression list =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match e.pexp_desc with
-  | Pexp_construct ({ txt = Lident "[]"; _ }, None) -> []
-  | Pexp_construct ({ txt = Lident "::"; _ }, Some pair) ->
-      let (hd, tl) = pair_of_expression pair in
-      hd :: list_of_expression tl
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "List expected"
-
-let update f ref =
-  let (result, new_contents) = f !ref in
-  ref := new_contents;
-  result
-
-let mutate f ref =
-  ref := f !ref
+(** {1 Coercions (ctd)} *)
 
 let sequence (list : Parsetree.expression list) : Parsetree.expression =
   match list with
@@ -545,23 +581,12 @@ let sequence (list : Parsetree.expression list) : Parsetree.expression =
   | hd :: tl ->
       List.fold_left Ast_helper.Exp.sequence hd tl
 
-let include_signature (signature : Parsetree.signature)
-    : Parsetree.signature_item =
-  Ast_helper.Sig.include_ (Ast_helper.Incl.mk
-    (Ast_helper.Mty.signature signature))
+(** {1 General purpose functions} *)
 
-let include_structure (structure : Parsetree.structure)
-    : Parsetree.structure_item =
-  Ast_helper.Str.include_ (Ast_helper.Incl.mk
-    (Ast_helper.Mod.structure structure))
+let update f ref =
+  let (result, new_contents) = f !ref in
+  ref := new_contents;
+  result
 
-let bool = Exp.of_bool
-
-let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
-  Location.mkloc (Longident.Lident str.txt) str.loc
-
-let map_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b Location.loc =
-  { l with txt = f l.txt }
-
-let with_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b =
-  Ast_helper.with_default_loc l.loc (fun () -> f l.txt)
+let mutate f ref =
+  ref := f !ref

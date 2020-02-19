@@ -1,5 +1,7 @@
 include Metapp_preutils
 
+(** {1 General purpose functions} *)
+
 let rec extract_first (p : 'a -> 'b option) (l : 'a list)
     : ('b * 'a list) option =
   match l with
@@ -12,6 +14,8 @@ let rec extract_first (p : 'a -> 'b option) (l : 'a list)
           | Some (b, tl) -> Some (b, hd :: tl)
           | None -> None
 
+(** {1 Attribute management} *)
+
 module Attr = struct
   let mk (name : Ast_helper.str) (payload : Parsetree.payload) =
     [%meta if Sys.ocaml_version < "4.08.0" then
@@ -19,7 +23,7 @@ module Attr = struct
     else
       [%e Ast_helper.Attr.mk name payload]]
 
-  let name (attribute : Parsetree.attribute) : string Location.loc =
+  let name (attribute : Parsetree.attribute) : Ast_helper.str =
     [%meta if Sys.ocaml_version < "4.08.0" then
       [%e fst attribute]
     else
@@ -51,6 +55,8 @@ module Attr = struct
         None) attributes
 end
 
+(** {1 Module binding and declaration} *)
+
 let get_mod_name mod_ name =
   match name with
   | None ->
@@ -75,6 +81,8 @@ module Mb = struct
     else
       [%e Ast_helper.Mb.mk mod_name s]]
 end
+
+(** {1 Mapper for [[@when bool]] notation} *)
 
 let filter : Ast_mapper.mapper =
   let check_attr (attributes : Parsetree.attributes) =
@@ -222,6 +230,8 @@ let filter : Ast_mapper.mapper =
     | _ -> item in
   { Ast_mapper.default_mapper with pat; expr; structure_item; signature_item }
 
+(** {1 Signature type destruction} *)
+
 [%%meta Metapp_preutils.include_structure (
   if Sys.ocaml_version >= "4.08.0" then [%str
 type sig_type = {
@@ -249,8 +259,11 @@ let destruct_sig_type (item : Types.signature_item) : sig_type option =
       Some { id; decl; rec_status }
   | _ -> None])]
 
+(** {1 Type construction} *)
+
 module Typ = struct
-  let poly names ty =
+  let poly (names : string list) (ty : Parsetree.core_type)
+      : Parsetree.core_type =
     let names =
       [%meta if Sys.ocaml_version >= "4.05.0" then [%e
         List.map mkloc names]

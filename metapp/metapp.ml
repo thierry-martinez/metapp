@@ -28,9 +28,9 @@ let array_set (a : Parsetree.expression) (index : int)
     [a; i; v]
 
 type instruction =
-  | Load of string
-  | Package of string
-  | Directory of string
+  | Load of string list
+  | Packages of string list
+  | Directories of string list
   | Flags of string list
   | Exp of Parsetree.expression
   | Definition of Parsetree.structure
@@ -106,39 +106,63 @@ let holes_mapper ?(def : (instruction Location.loc -> unit) option)
     | Ppat_extension ({ txt = "meta"; _ }, payload) ->
         holes.pat payload
     | _ -> Ast_mapper.default_mapper.pat mapper pat in
+  let handle_extension (e : Parsetree.extension) : bool =
+    match e with
+    | ({ txt = "metadef"; _ }, payload) ->
+        Stdcompat.Option.get def (Metapp_preutils.mkloc
+          (Definition (Metapp_preutils.structure_of_payload payload)));
+        true
+    | ({ txt = "metaload"; _ }, payload) ->
+        let load =
+          List.map Metapp_preutils.string_of_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.expression_of_payload payload)) in
+        Stdcompat.Option.get def (Metapp_preutils.mkloc (Load load));
+        true
+    | ({ txt = "metapackage"; _ }, payload) ->
+        let packages =
+          List.map Metapp_preutils.string_of_arbitrary_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.expression_of_payload payload)) in
+        Stdcompat.Option.get def (Metapp_preutils.mkloc (Packages packages));
+        true
+    | ({ txt = "metadir"; _ }, payload) ->
+        let directories =
+          List.map Metapp_preutils.string_of_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.expression_of_payload payload)) in
+        Stdcompat.Option.get def (Metapp_preutils.mkloc
+          (Directories directories));
+        true
+    | ({ txt = "metaflags"; _ }, payload) ->
+        Stdcompat.Option.get def (Metapp_preutils.mkloc
+          (Flags (List.map Metapp_preutils.string_of_expression
+            (Metapp_preutils.list_of_expression
+              (Metapp_preutils.expression_of_payload payload)))));
+        true
+    | ({ txt = "metaplainsource"; _ }, _payload) ->
+        Stdcompat.Option.get def (Metapp_preutils.mkloc Plainsource);
+        true
+    | _ -> false in
   let structure_item (mapper : Ast_mapper.mapper)
       (item : Parsetree.structure_item) : Parsetree.structure_item =
     Ast_helper.with_default_loc item.pstr_loc @@ fun () ->
     match item.pstr_desc with
     | Pstr_extension (({ txt = "meta"; _ }, payload), _) ->
         holes.structure_item payload
-    | Pstr_extension (({ txt = "metadef"; _ }, payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Definition (Metapp_preutils.structure_of_payload payload)));
-        Metapp_preutils.include_structure []
-    | Pstr_extension (({ txt = "metaload"; _ }, payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Load (Metapp_preutils.string_of_payload payload)));
-        Metapp_preutils.include_structure []
-    | Pstr_extension (({ txt = "metapackage"; _ }, payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Package (Metapp_preutils.string_of_payload payload)));
-        Metapp_preutils.include_structure []
-    | Pstr_extension (({ txt = "metadir"; _ }, payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Directory (Metapp_preutils.string_of_payload payload)));
-        Metapp_preutils.include_structure []
-    | Pstr_extension (({ txt = "metaflags"; _ }, payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Flags (List.map Metapp_preutils.string_of_expression
-            (Metapp_preutils.list_of_expression
-              (Metapp_preutils.expression_of_payload payload)))));
-        Metapp_preutils.include_structure []
-    | Pstr_extension (({ txt = "metaplainsource"; _ }, _payload), _) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc Plainsource);
+    | Pstr_extension (e, _) when handle_extension e ->
         Metapp_preutils.include_structure []
     | _ -> Ast_mapper.default_mapper.structure_item mapper item in
-  { Ast_mapper.default_mapper with expr; pat; structure_item }
+  let signature_item (mapper : Ast_mapper.mapper)
+      (item : Parsetree.signature_item) : Parsetree.signature_item =
+    Ast_helper.with_default_loc item.psig_loc @@ fun () ->
+    match item.psig_desc with
+    | Psig_extension (({ txt = "meta"; _ }, payload), _) ->
+        holes.signature_item payload
+    | Psig_extension (e, _) when handle_extension e ->
+        Metapp_preutils.include_signature []
+    | _ -> Ast_mapper.default_mapper.signature_item mapper item in
+  { Ast_mapper.default_mapper with expr; pat; structure_item; signature_item }
 
 
 (*
@@ -524,10 +548,10 @@ let compile_and_load (options : options) (structure : Parsetree.structure)
       ~finally:(fun () -> Sys.remove object_filename))
     ~finally:(fun () -> Sys.remove source_filename)
 
-let structure (_mapper : Ast_mapper.mapper) (s : Parsetree.structure)
-    : Parsetree.structure =
+let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
+    (s : 'a) : 'a =
   let (mapper, k) = extract_holes () in
-  let s = mapper.structure mapper s in
+  let s = get_mapper mapper mapper s in
   match k () with { instructions; context } ->
   Metapp_api.top_context := Some context;
   let initial_parsetree =
@@ -552,32 +576,34 @@ let structure (_mapper : Ast_mapper.mapper) (s : Parsetree.structure)
         (item :: accu_parsetree, accu_options)
     | Definition definition ->
         (List.rev_append definition accu_parsetree, accu_options)
-    | Package package ->
+    | Packages packages ->
         (accu_parsetree,
-          { accu_options with packages = package :: accu_options.packages })
-    | Load object_file ->
-        Dynlink.loadfile object_file;
-        let dir_name = Filename.dirname object_file in
-        let accu_options =
+          { accu_options with packages =
+              List.rev_append packages accu_options.packages })
+    | Load object_files ->
+        let add_object_file accu_options object_file =
+          Dynlink.loadfile object_file;
+          let dir_name = Filename.dirname object_file in
           if dir_name = Filename.current_dir_name ||
               List.mem dir_name accu_options.directories then
             accu_options
           else
             { accu_options with
               directories = dir_name :: accu_options.directories } in
-        (accu_parsetree, accu_options)
-    | Directory directory ->
+        (accu_parsetree,
+          List.fold_left add_object_file accu_options object_files)
+    | Directories directories ->
         (accu_parsetree,
           { accu_options with
-            directories = directory :: accu_options.directories })
+            directories =
+              List.rev_append directories accu_options.directories })
     | Flags flags ->
         (accu_parsetree,
           { accu_options with
             flags = List.rev_append flags accu_options.flags })
     | Plainsource ->
         (accu_parsetree,
-          { accu_options with
-            plainsource = true }) in
+          { accu_options with plainsource = true }) in
   let (accu_parsetree, accu_options) =
     List.fold_left make_instruction (initial_parsetree, empty_options)
       instructions in
@@ -590,10 +616,12 @@ let structure (_mapper : Ast_mapper.mapper) (s : Parsetree.structure)
     end;
   compile_and_load options parsetree;
   let mapper = replace_holes context.holes in
-  mapper.structure mapper s
+  get_mapper mapper mapper s
 
 let mapper : Ast_mapper.mapper =
-  { Ast_mapper.default_mapper with structure }
+  { Ast_mapper.default_mapper with
+    structure = (fun _mapper -> transform (fun mapper -> mapper.structure));
+    signature = (fun _mapper -> transform (fun mapper -> mapper.signature)); }
 
 let rewriter _config _cookies : Ast_mapper.mapper =
   mapper
