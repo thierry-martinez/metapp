@@ -74,6 +74,8 @@ let apply ?attrs (f : Parsetree.expression) (args : Parsetree.expression list)
     : Parsetree.expression =
   Ast_helper.Exp.apply ?attrs f (nolabels args)
 
+type 'a mapper_item = Ast_mapper.mapper -> 'a -> 'a
+
 module type BaseValueS = sig
   type t
 
@@ -101,7 +103,11 @@ module type BaseValueS = sig
   val choice :
       (unit -> Parsetree.expression) -> (unit -> Parsetree.pattern) -> t
 
-  val mapper : Ast_mapper.mapper -> Ast_mapper.mapper -> t -> t
+  val mapper : Ast_mapper.mapper -> t mapper_item
+
+  val set_mapper : t mapper_item -> Ast_mapper.mapper -> Ast_mapper.mapper
+
+  val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
 
   val destruct_extension : t -> Parsetree.extension option
 
@@ -120,6 +126,14 @@ module type ValueS = sig
   val of_unit : ?attrs:Parsetree.attributes -> unit -> t
 
   val of_bool : ?attrs:Parsetree.attributes -> bool -> t
+
+  val of_float : ?attrs:Parsetree.attributes -> float -> t
+
+  val of_int32 : ?attrs:Parsetree.attributes -> int32 -> t
+
+  val of_int64 : ?attrs:Parsetree.attributes -> int64 -> t
+
+  val of_nativeint : ?attrs:Parsetree.attributes -> nativeint -> t
 
   val none : ?attrs:Parsetree.attributes -> unit -> t
 
@@ -172,6 +186,18 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
 
   let of_unit ?attrs () =
     force_construct ?attrs (mkloc (Longident.Lident unit_ctor)) None
+
+  let of_float ?attrs f =
+    of_constant ?attrs (Ast_helper.Const.float (string_of_float f))
+
+  let of_int32 ?attrs i =
+    of_constant ?attrs (Ast_helper.Const.int32 i)
+
+  let of_int64 ?attrs i =
+    of_constant ?attrs (Ast_helper.Const.int64 i)
+
+  let of_nativeint ?attrs i =
+    of_constant ?attrs (Ast_helper.Const.nativeint i)
 
   let tuple ?attrs (args : t list) : t =
     match args with
@@ -268,6 +294,13 @@ module Exp : ValueS with type t = Parsetree.expression =
   let mapper (mapper : Ast_mapper.mapper) =
     mapper.expr
 
+  let set_mapper (expr : Parsetree.expression mapper_item)
+      (mapper : Ast_mapper.mapper) =
+    { mapper with expr }
+
+  let extension ?attrs (e : Parsetree.extension) =
+    Ast_helper.Exp.extension ?attrs e
+
   let destruct_extension (e : Parsetree.expression)
       : Parsetree.extension option =
     match e.pexp_desc with
@@ -319,6 +352,13 @@ module Pat : ValueS with type t = Parsetree.pattern =
 
   let mapper (mapper : Ast_mapper.mapper) =
     mapper.pat
+
+  let set_mapper (pat : Parsetree.pattern mapper_item)
+      (mapper : Ast_mapper.mapper) =
+    { mapper with pat }
+
+  let extension ?attrs (e : Parsetree.extension) =
+    Ast_helper.Pat.extension ?attrs e
 
   let destruct_extension (e : Parsetree.pattern) : Parsetree.extension option =
     match e.ppat_desc with
@@ -406,6 +446,13 @@ module Value : ValueS with type t = value = ExtendValue (struct
 
   let mapper (_mapper : Ast_mapper.mapper) =
     failwith "value cannot be mapped"
+
+  let set_mapper (_item : t mapper_item) (_mapper : Ast_mapper.mapper) =
+    failwith "value cannot be mapped"
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    { exp = Exp.extension ?attrs e;
+      pat = Pat.extension ?attrs e; }
 
   let destruct_extension (v : value) : Parsetree.extension option =
     match v.exp.pexp_desc with
@@ -515,3 +562,6 @@ let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
 
 let map_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b Location.loc =
   { l with txt = f l.txt }
+
+let with_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b =
+  Ast_helper.with_default_loc l.loc (fun () -> f l.txt)
