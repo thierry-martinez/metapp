@@ -50,7 +50,7 @@ expressions (module `Exp`), patterns (module `Pat`) or both at the
 same time (module `Value`).
 
 The `Metapp_utils` module also provides a `filter` mapper that handles
-`[@if <bool>]` attributes {e à la} `ppx_optcomp`. The `[@if <bool>]`
+`[@if <bool>]` attributes _à la_ `ppx_optcomp`. The `[@if <bool>]`
 attribute can appear mostly everywhere syntax elements are enumerated,
 including tuples, function applications, arrays, etc.
 
