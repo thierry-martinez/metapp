@@ -1,4 +1,4 @@
-# metapp: meta-preprocessor for OCaml
+# `metapp`: meta-preprocessor for OCaml
 
 `metapp` is a PPX rewriter that provides a `[%meta ...]` extension,
 where the dots `...` are arbitrary OCaml expressions that are
