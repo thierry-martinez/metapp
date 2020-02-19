@@ -57,12 +57,14 @@ end
 
 (** {1 Module binding and declaration} *)
 
+[%%meta if Sys.ocaml_version < "4.10.0" then [%stri
 let get_mod_name mod_ name =
   match name with
   | None ->
       invalid_arg (Printf.sprintf
         "%s.mk: anonymous modules are not supported with OCaml <4.10.0" mod_)
-  | Some name -> name
+  | Some name -> name]
+else Metapp_preutils.include_structure []]
 
 module Md = struct
   let mk (mod_name : string option Location.loc)
