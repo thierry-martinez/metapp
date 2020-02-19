@@ -20,7 +20,7 @@ construction where ... stands for OCaml code evaluated at
 compile-time.
 ")
  (depends
-  (ocaml (>= 4.03.0))
+  (ocaml (and (>= 4.03.0) (< 4.11.0)))
   (stdcompat (>= 12))
   (ocaml-migrate-parsetree (>= 1.5.0))
   (ocamlfind (>= 1.8.1))
