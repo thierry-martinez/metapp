@@ -77,5 +77,5 @@ the `metapp.utils` package.
 Other packages can be loaded with `[%%metapackage ...]`.
 More generally, flags can be passed to the compiler to compile meta-code
 with `[%%metaflags ...]` (there is another convenient notation for
-adding interface directories: `[%%metadirectory ...]`).
+adding interface directories: `[%%metadir ...]`).
 `[%%metaload ...]` loads a particular compilation unit.
