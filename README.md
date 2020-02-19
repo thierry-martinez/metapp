@@ -33,7 +33,7 @@ let option_get o =
 ```lisp
 (executable
   ...
-  (preprocess (pps metapp.utils metapp))
+  (preprocess (pps metapp.ppx))
   ...)
 ```
 
@@ -53,43 +53,46 @@ available: the full list is given below.
 
 Quoted expressions can in turn contain further `[%meta ...]` code.
 
-In addition to this syntax extension, the [`Metapp_utils`] module
-provided by the [`metapp.utils`] package provides convenient functions
+In addition to this syntax extension, the [`Metapp`] module
+provided by the [`metapp`] package provides convenient functions
 for AST constructions.  In particular, this module provides an
 OCaml-version-independent interface.  Moveover, this module provides a
 common signature `ValueS` for constructing and transforming
 expressions (module `Exp`), patterns (module `Pat`) or both at the
 same time (module `Value`).
 
-[`Metapp_utils`]: https://github.com/thierry-martinez/metapp/blob/master/utils/metapp_utils.mli
+[`Metapp`]: https://github.com/thierry-martinez/metapp/blob/master/metapp/metapp.mli
 
-The [`Metapp_utils`] module also provides a `filter` mapper that handles
+The [`Metapp`] module also provides a `filter` mapper that handles
 `[@if <bool>]` attributes _à la_ `ppx_optcomp`. The `[@if <bool>]`
 attribute can appear mostly everywhere syntax elements are enumerated,
 including tuples, function applications, arrays, etc.
 
 ```ocaml
-[%%meta Metapp_utils.include_structure (
-  Metapp_utils.filter.structure Metapp_utils.filter [%str
+[%%meta Metapp.include_structure (
+  Metapp.filter.structure Metapp.filter [%str
     type t =
     | A of int
     | B of int * int
-        [@if [%meta Metapp_utils.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]]
+        [@if [%meta Metapp.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]]
     ...
 
     match (v: t) with
     | A x -> something x
     | B (y,z)
-      [@if [%meta Metapp_utils.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]] ->
+      [@if [%meta Metapp.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]] ->
         something' y z
     ... ])]
 ```
 
 Global definitions for meta-code can be included with `[%%metadef
-...]`.  By default, the meta-code is compiled with `compiler-libs` and
-the `metapp.utils` package.
+...]`.
+By default, the meta-code is compiled with the `compiler-libs` package.
 Other packages can be loaded with `[%%metapackage ...]`.
 More generally, flags can be passed to the compiler to compile meta-code
 with `[%%metaflags ...]` (there is another convenient notation for
 adding interface directories: `[%%metadir ...]`).
-`/[%%metaload ...]` loads a particular compilation unit.
+`[%%metaload ...]` loads a particular compilation unit.
+
+For instance, `[%%metapackage metapp]` links the meta-code with the
+`metapp` package in order to use the [`Metapp`] module.

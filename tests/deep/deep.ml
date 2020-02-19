@@ -1,4 +1,4 @@
-[%%metapackage "stdcompat"]
+[%%metapackage stdcompat]
 
 let () =
   assert

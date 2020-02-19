@@ -1,5 +1,5 @@
 (test
   (name simple)
-  (preprocess (pps metapp))
+  (preprocess (pps metapp.ppx))
   (flags -dsource)
-  (libraries metapp_preutils test_framework stdcompat))
+  (libraries metapp.preutils test_framework stdcompat))

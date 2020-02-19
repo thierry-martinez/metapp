@@ -1,4 +1,4 @@
-[%%metapackage "stdcompat"]
+[%%metapackage stdcompat]
 
 let () =
   let counter = ref 0 in
