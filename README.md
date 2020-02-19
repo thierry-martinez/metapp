@@ -13,7 +13,7 @@ In particular, this preprocessor is easy to use for conditional
 compilation, and is an alternative to [`cppo`] and [`ppx_optcomp`].
 
 [`cppo`]: https://github.com/ocaml-community/cppo
-[`ppxoptcomp`]: https://github.com/janestreet/ppx_optcomp
+[`ppx_optcomp`]: https://github.com/janestreet/ppx_optcomp
 
 ```ocaml
 let option_get o =
@@ -30,7 +30,7 @@ Inside `[%meta ...]` code, the `[%e ...]` extension quotes expressions
 available: the full list is given below.
 
 |Quotation                    |Type                      |
-----------------------------------------------------------
+|-----------------------------|--------------------------|
 |`[%e ...]` or `[%expr ...]`  |`Parsetree.expression`    |
 |`[%p? ...]` or `[%pat? ...]` |`Parsetree.pattern`       |
 |`[%t: ...]` or `[%type: ...]`|`Parsetree.core_type`     |
