@@ -216,7 +216,7 @@ else
 
 val destruct_sig_type : Types.signature_item -> sig_type option
 
-(** {1 Mapper for [[@when bool]] notation} *)
+(** {1 Mapper for [[@if bool]] notation} *)
 
 val filter : Ast_mapper.mapper
 

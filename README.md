@@ -49,6 +49,28 @@ common signature `ValueS` for constructing and transforming
 expressions (module `Exp`), patterns (module `Pat`) or both at the
 same time (module `Value`).
 
+The `Metapp_utils` module also provides a `filter` mapper that handles
+`[@if <bool>]` attributes {e à la} `ppx_optcomp`. The `[@if <bool>]`
+attribute can appear mostly everywhere syntax elements are enumerated,
+including tuples, function applications, arrays, etc.
+
+```ocaml
+[%%meta Metapp_utils.include_structure (
+  Metapp_utils.filter.structure Metapp_utils.filter [%str
+    type t =
+    | A of int
+    | B of int * int
+        [@if [%meta Metapp_utils.Exp.of_bool Sys.ocaml_version >= 4.04]]
+    ...
+    
+    match (v: t) with
+    | A x -> something x
+    | B (y,z)
+        [@if [%meta Metapp_utils.Exp.of_bool Sys.ocaml_version >= 4.04]] ->
+        something' y z
+    ... ])]
+```
+
 Global definitions for meta-code can be included with `[%%metadef
 ...]`.  By default, the meta-code is compiled with `compiler-libs` and
 the `metapp.utils` package.

@@ -82,11 +82,11 @@ module Mb = struct
       [%e Ast_helper.Mb.mk mod_name s]]
 end
 
-(** {1 Mapper for [[@when bool]] notation} *)
+(** {1 Mapper for [[@if bool]] notation} *)
 
 let filter : Ast_mapper.mapper =
   let check_attr (attributes : Parsetree.attributes) =
-    match Attr.find "when" attributes with
+    match Attr.find "if" attributes with
     | None -> true
     | Some attr -> bool_of_payload (Attr.payload attr) in
   let rec check_pat (p : Parsetree.pattern) =
