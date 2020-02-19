@@ -53,7 +53,7 @@ available: the full list is given below.
 
 Quoted expressions can in turn contain further `[%meta ...]` code.
 
-In addition to this syntax extension, the `Metapp_utils` module
+In addition to this syntax extension, the [`Metapp_utils`] module
 provided by the [`metapp.utils`] package provides convenient functions
 for AST constructions.  In particular, this module provides an
 OCaml-version-independent interface.  Moveover, this module provides a
@@ -61,9 +61,9 @@ common signature `ValueS` for constructing and transforming
 expressions (module `Exp`), patterns (module `Pat`) or both at the
 same time (module `Value`).
 
-[`metapp.utils`]: https://github.com/thierry-martinez/metapp/blob/master/utils/metapp_utils.mli
+[`Metapp_utils`]: https://github.com/thierry-martinez/metapp/blob/master/utils/metapp_utils.mli
 
-The `Metapp_utils` module also provides a `filter` mapper that handles
+The [`Metapp_utils`] module also provides a `filter` mapper that handles
 `[@if <bool>]` attributes _à la_ `ppx_optcomp`. The `[@if <bool>]`
 attribute can appear mostly everywhere syntax elements are enumerated,
 including tuples, function applications, arrays, etc.
