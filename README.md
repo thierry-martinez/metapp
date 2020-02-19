@@ -63,7 +63,7 @@ same time (module `Value`).
 
 [`Metapp`]: https://github.com/thierry-martinez/metapp/blob/master/metapp/metapp.mli
 
-The [`Metapp`] module also provides a `filter` mapper that handles
+The [`Metapp`] module also provides a `filter` mapper, which handles
 `[@if <bool>]` attributes _à la_ `ppx_optcomp`. The `[@if <bool>]`
 attribute can appear mostly everywhere syntax elements are enumerated,
 including tuples, function applications, arrays, etc.
