@@ -1,3 +1,4 @@
+module Header = struct
 (** {1 Coercions} *)
 
 let int_of_expression (e : Parsetree.expression) : int =
@@ -84,68 +85,6 @@ let include_structure (structure : Parsetree.structure)
 let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
   Location.mkloc (Longident.Lident str.txt) str.loc
 
-(** {1 Payload extraction} *)
-
-let expression_of_payload (payload : Parsetree.payload) : Parsetree.expression =
-  match payload with
-  | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
-      expr
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Expression expected"
-
-let payload_of_expression (e : Parsetree.expression) : Parsetree.payload =
-  PStr (structure_of_expression e)
-
-let pattern_of_payload (payload : Parsetree.payload) : Parsetree.pattern =
-  match payload with
-  | PPat (pat, None) -> pat
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc "Pattern expected"
-
-let structure_of_payload (payload : Parsetree.payload) : Parsetree.structure =
-  match payload with
-  | PStr str -> str
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc "Structure expected"
-
-let structure_item_of_payload (payload : Parsetree.payload)
-    : Parsetree.structure_item =
-  match payload with
-  | PStr [item] -> item
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Single structure item expected"
-
-let signature_of_payload (payload : Parsetree.payload) : Parsetree.signature =
-  match payload with
-  | PSig sgn -> sgn
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc "Signature expected"
-
-let signature_item_of_payload (payload : Parsetree.payload)
-    : Parsetree.signature_item =
-  match payload with
-  | PSig [item] -> item
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Single signature item expected"
-
-let core_type_of_payload (payload : Parsetree.payload) : Parsetree.core_type =
-  match payload with
-  | PTyp typ -> typ
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc "Type expected"
-
-let int_of_payload (payload : Parsetree.payload) : int =
-  int_of_expression (expression_of_payload payload)
-
-let string_of_payload (payload : Parsetree.payload) : string =
-  string_of_expression (expression_of_payload payload)
-
-let bool_of_payload (payload : Parsetree.payload) : bool =
-  bool_of_expression (expression_of_payload payload)
-
 (** {1 Location management} *)
 
 let mkloc (txt : 'a) : 'a Location.loc =
@@ -181,14 +120,347 @@ let apply ?attrs (f : Parsetree.expression)
   Ast_helper.Exp.apply ?attrs f
     (List.map (fun (l, e) -> (Asttypes.Labelled l, e)) labels @ nolabels args)
 
-(** {1 Generic signature for expressions and patterns} *)
+(** {1 Generic signature for visitable nodes} *)
+
+type 'a iterator_item = Ast_iterator.iterator -> 'a -> unit
 
 type 'a mapper_item = Ast_mapper.mapper -> 'a -> 'a
 
-module type BaseValueS = sig
+type ('cell, 'contents) accessor = {
+    get : 'cell -> 'contents;
+    set : 'contents -> 'cell -> 'cell;
+  }
+
+module type VisitableS = sig
   type t
 
   val to_loc : t -> Location.t
+
+  val iterator : (Ast_iterator.iterator, t iterator_item) accessor
+
+  val mapper : (Ast_mapper.mapper, t mapper_item) accessor
+end
+
+(** {1 Generic signature for extensible nodes} *)
+
+module type ExtensibleS = sig
+  include VisitableS
+
+  val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
+
+  val destruct_extension : t -> Parsetree.extension option
+end
+
+module type PayloadS = sig
+  type t
+
+  val of_payload : Parsetree.payload -> t
+
+  val to_payload : t -> Parsetree.payload
+end
+
+module Cty : ExtensibleS with type t = Parsetree.class_type = struct
+  type t = Parsetree.class_type
+
+  let to_loc (cty : Parsetree.class_type) : Location.t =
+    cty.pcty_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { class_type; _ } -> class_type);
+    set = (fun class_type iterator -> { iterator with class_type })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { class_type; _ } -> class_type);
+    set = (fun class_type mapper -> { mapper with class_type })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Cty.extension ?attrs e
+
+  let destruct_extension (cty : Parsetree.class_type)
+      : Parsetree.extension option =
+    match cty.pcty_desc with
+    | Pcty_extension e -> Some e
+    | _ -> None
+end
+
+module Ctf : ExtensibleS with type t = Parsetree.class_type_field = struct
+  type t = Parsetree.class_type_field
+
+  let to_loc (ctf : Parsetree.class_type_field) : Location.t =
+    ctf.pctf_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { class_type_field; _ } -> class_type_field);
+    set = (fun class_type_field iterator -> { iterator with class_type_field })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { class_type_field; _ } -> class_type_field);
+    set = (fun class_type_field mapper -> { mapper with class_type_field })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Ctf.extension ?attrs e
+
+  let destruct_extension (ctf : Parsetree.class_type_field)
+      : Parsetree.extension option =
+    match ctf.pctf_desc with
+    | Pctf_extension e -> Some e
+    | _ -> None
+end
+
+module Cl : ExtensibleS with type t = Parsetree.class_expr = struct
+  type t = Parsetree.class_expr
+
+  let to_loc (cl : Parsetree.class_expr) : Location.t =
+    cl.pcl_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { class_expr; _ } -> class_expr);
+    set = (fun class_expr iterator -> { iterator with class_expr })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { class_expr; _ } -> class_expr);
+    set = (fun class_expr mapper -> { mapper with class_expr })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Cl.extension ?attrs e
+
+  let destruct_extension (cl : Parsetree.class_expr)
+      : Parsetree.extension option =
+    match cl.pcl_desc with
+    | Pcl_extension e -> Some e
+    | _ -> None
+end
+
+module Cf : ExtensibleS with type t = Parsetree.class_field = struct
+  type t = Parsetree.class_field
+
+  let to_loc (cf : Parsetree.class_field) : Location.t =
+    cf.pcf_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { class_field; _ } -> class_field);
+    set = (fun class_field iterator -> { iterator with class_field })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { class_field; _ } -> class_field);
+    set = (fun class_field mapper -> { mapper with class_field })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Cf.extension ?attrs e
+
+  let destruct_extension (cf : Parsetree.class_field)
+      : Parsetree.extension option =
+    match cf.pcf_desc with
+    | Pcf_extension e -> Some e
+    | _ -> None
+end
+
+module Mty : ExtensibleS with type t = Parsetree.module_type = struct
+  type t = Parsetree.module_type
+
+  let to_loc (mty : Parsetree.module_type) : Location.t =
+    mty.pmty_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { module_type; _ } -> module_type);
+    set = (fun module_type iterator -> { iterator with module_type })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { module_type; _ } -> module_type);
+    set = (fun module_type mapper -> { mapper with module_type })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Mty.extension ?attrs e
+
+  let destruct_extension (mty : Parsetree.module_type)
+      : Parsetree.extension option =
+    match mty.pmty_desc with
+    | Pmty_extension e -> Some e
+    | _ -> None
+end
+
+module Mod : ExtensibleS with type t = Parsetree.module_expr = struct
+  type t = Parsetree.module_expr
+
+  let to_loc (m : Parsetree.module_expr) : Location.t =
+    m.pmod_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { module_expr; _ } -> module_expr);
+    set = (fun module_expr iterator -> { iterator with module_expr })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { module_expr; _ } -> module_expr);
+    set = (fun module_expr mapper -> { mapper with module_expr })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Mod.extension ?attrs e
+
+  let destruct_extension (m : Parsetree.module_expr)
+      : Parsetree.extension option =
+    match m.pmod_desc with
+    | Pmod_extension e -> Some e
+    | _ -> None
+end
+
+let range_loc (first : Location.t) (last : Location.t) : Location.t = {
+  loc_start = first.loc_start;
+  loc_end = last.loc_end;
+  loc_ghost = first.loc_ghost || last.loc_ghost;
+}
+
+module Stri = struct
+  type t = Parsetree.structure_item
+
+  let to_loc (s : Parsetree.structure_item) : Location.t =
+    s.pstr_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { structure_item; _ } -> structure_item);
+    set = (fun structure_item iterator -> { iterator with structure_item })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { structure_item; _ } -> structure_item);
+    set = (fun structure_item mapper -> { mapper with structure_item })
+  }
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Str.extension ?attrs e
+
+  let destruct_extension (s : Parsetree.structure_item)
+      : Parsetree.extension option =
+    match s.pstr_desc with
+    | Pstr_extension (e, _) -> Some e
+    | _ -> None
+
+  let of_payload (payload : Parsetree.payload)
+      : Parsetree.structure_item =
+    match payload with
+    | PStr [item] -> item
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc
+          "Single structure item expected"
+
+  let to_payload (item : Parsetree.structure_item) : Parsetree.payload =
+    PStr [item]
+end
+
+let list_to_loc (item_to_loc : 'a -> Location.t) (l : 'a list) : Location.t =
+  match l with
+  | [] -> !Ast_helper.default_loc
+  | first :: tl ->
+      let last = List.fold_left (fun _ last -> last) first tl in
+      range_loc (item_to_loc first) (item_to_loc last)
+
+module Str = struct
+  type t = Parsetree.structure
+
+  let to_loc (s : Parsetree.structure) : Location.t =
+    list_to_loc Stri.to_loc s
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { structure; _ } -> structure);
+    set = (fun structure iterator -> { iterator with structure })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { structure; _ } -> structure);
+    set = (fun structure mapper -> { mapper with structure })
+  }
+
+  let of_payload (payload : Parsetree.payload) : Parsetree.structure =
+    match payload with
+    | PStr str -> str
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc "Structure expected"
+
+  let to_payload (str : Parsetree.structure) : Parsetree.payload =
+    PStr str
+end
+
+module Sigi = struct
+  type t = Parsetree.signature_item
+
+  let to_loc (s : Parsetree.signature_item) : Location.t =
+    s.psig_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { signature_item; _ } -> signature_item);
+    set = (fun signature_item iterator -> { iterator with signature_item })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { signature_item; _ } -> signature_item);
+    set = (fun signature_item mapper -> { mapper with signature_item })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Sig.extension ?attrs e
+
+  let destruct_extension (s : Parsetree.signature_item)
+      : Parsetree.extension option =
+    match s.psig_desc with
+    | Psig_extension (e, _) -> Some e
+    | _ -> None
+
+  let of_payload (payload : Parsetree.payload) : Parsetree.signature_item =
+    match payload with
+    | PSig [item] -> item
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc
+          "Single signature item expected"
+
+  let to_payload (item : Parsetree.signature_item) : Parsetree.payload =
+    PSig [item]
+end
+
+module Sig = struct
+  type t = Parsetree.signature
+
+  let to_loc (s : Parsetree.signature) : Location.t =
+    list_to_loc Sigi.to_loc s
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { signature; _ } -> signature);
+    set = (fun signature iterator -> { iterator with signature })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { signature; _ } -> signature);
+    set = (fun signature mapper -> { mapper with signature })
+  }
+
+  let of_payload (payload : Parsetree.payload) : Parsetree.signature =
+    match payload with
+    | PSig sgn -> sgn
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc "Signature expected"
+
+  let to_payload (sig_ : Parsetree.signature) : Parsetree.payload =
+    PSig sig_
+end
+
+type value = {
+    exp : Parsetree.expression;
+    pat : Parsetree.pattern;
+  }
+
+(** {1 Generic signature for expressions and patterns} *)
+
+module type BaseValueS = sig
+  include ExtensibleS
 
   val var : ?attrs:Parsetree.attributes -> string -> t
 
@@ -212,15 +484,9 @@ module type BaseValueS = sig
   val choice :
       (unit -> Parsetree.expression) -> (unit -> Parsetree.pattern) -> t
 
-  val mapper : Ast_mapper.mapper -> t mapper_item
-
-  val set_mapper : t mapper_item -> Ast_mapper.mapper -> Ast_mapper.mapper
-
-  val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
-
-  val destruct_extension : t -> Parsetree.extension option
-
   val of_payload : Parsetree.payload -> t
+
+  val to_payload : t -> Parsetree.payload
 end
 
 module type ValueS = sig
@@ -353,9 +619,11 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     | [] -> nil ?attrs ?prefix ()
     | hd :: tl -> cons ?attrs ?prefix hd (list ?prefix tl)
 end
+end
 
-module Exp : ValueS with type t = Parsetree.expression =
-    ExtendValue (struct
+include Header
+
+module Exp = ExtendValue (struct
   type t = Parsetree.expression
 
   let to_loc (e : Parsetree.expression) : Location.t =
@@ -395,12 +663,15 @@ module Exp : ValueS with type t = Parsetree.expression =
       : t =
     e ()
 
-  let mapper (mapper : Ast_mapper.mapper) =
-    mapper.expr
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { expr; _ } -> expr);
+    set = (fun expr iterator -> { iterator with expr })
+  }
 
-  let set_mapper (expr : Parsetree.expression mapper_item)
-      (mapper : Ast_mapper.mapper) =
-    { mapper with expr }
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { expr; _ } -> expr);
+    set = (fun expr mapper -> { mapper with expr })
+  }
 
   let extension ?attrs (e : Parsetree.extension) =
     Ast_helper.Exp.extension ?attrs e
@@ -411,11 +682,55 @@ module Exp : ValueS with type t = Parsetree.expression =
     | Pexp_extension extension -> Some extension
     | _ -> None
 
-  let of_payload = expression_of_payload
+  let of_payload (payload : Parsetree.payload) : Parsetree.expression =
+    match payload with
+    | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
+        expr
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc
+          "Expression expected"
+
+  let to_payload (e : Parsetree.expression) : Parsetree.payload =
+    PStr (structure_of_expression e)
 end)
 
-module Pat : ValueS with type t = Parsetree.pattern =
-    ExtendValue (struct
+module Typ = struct
+  type t = Parsetree.core_type
+
+  let to_loc (ty : Parsetree.core_type) : Location.t =
+    ty.ptyp_loc
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { typ; _ } -> typ);
+    set = (fun typ iterator -> { iterator with typ })
+  }
+
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { typ; _ } -> typ);
+    set = (fun typ mapper -> { mapper with typ })
+  }
+
+  let extension ?attrs (e : Parsetree.extension) : t =
+    Ast_helper.Typ.extension ?attrs e
+
+  let destruct_extension (ty : Parsetree.core_type)
+      : Parsetree.extension option =
+    match ty.ptyp_desc with
+    | Ptyp_extension e -> Some e
+    | _ -> None
+
+  let of_payload (payload : Parsetree.payload) : Parsetree.core_type =
+    match payload with
+    | PTyp typ -> typ
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc "Type expected"
+
+  let to_payload (typ : Parsetree.core_type) : Parsetree.payload =
+    PTyp typ
+end
+
+module Footer = struct
+module Pat = ExtendValue (struct
   type t = Parsetree.pattern
 
   let to_loc (p : Parsetree.pattern) : Location.t =
@@ -454,12 +769,15 @@ module Pat : ValueS with type t = Parsetree.pattern =
       : t =
     p ()
 
-  let mapper (mapper : Ast_mapper.mapper) =
-    mapper.pat
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = (fun { pat; _ } -> pat);
+    set = (fun pat iterator -> { iterator with pat })
+  }
 
-  let set_mapper (pat : Parsetree.pattern mapper_item)
-      (mapper : Ast_mapper.mapper) =
-    { mapper with pat }
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = (fun { pat; _ } -> pat);
+    set = (fun pat mapper -> { mapper with pat })
+  }
 
   let extension ?attrs (e : Parsetree.extension) =
     Ast_helper.Pat.extension ?attrs e
@@ -469,13 +787,14 @@ module Pat : ValueS with type t = Parsetree.pattern =
     | Ppat_extension extension -> Some extension
     | _ -> None
 
-  let of_payload = pattern_of_payload
+  let of_payload (payload : Parsetree.payload) : Parsetree.pattern =
+    match payload with
+    | PPat (pat, None) -> pat
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc "Pattern expected"
+  let to_payload (pat : Parsetree.pattern) : Parsetree.payload =
+    PPat (pat, None)
 end)
-
-type value = {
-    exp : Parsetree.expression;
-    pat : Parsetree.pattern;
-  }
 
 module Value : ValueS with type t = value = ExtendValue (struct
   type t = value
@@ -548,11 +867,21 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = e ();
       pat = p (); }
 
-  let mapper (_mapper : Ast_mapper.mapper) =
+  let no_iterator _ =
+    failwith "value cannot be iterated"
+
+  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+    get = no_iterator;
+    set = (fun _ -> no_iterator)
+  }
+
+  let no_mapper _ =
     failwith "value cannot be mapped"
 
-  let set_mapper (_item : t mapper_item) (_mapper : Ast_mapper.mapper) =
-    failwith "value cannot be mapped"
+  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+    get = no_mapper;
+    set = (fun _ -> no_mapper)
+  }
 
   let extension ?attrs (e : Parsetree.extension) : t =
     { exp = Exp.extension ?attrs e;
@@ -565,12 +894,26 @@ module Value : ValueS with type t = value = ExtendValue (struct
 
   let of_payload _ =
     failwith "value cannot be obtained from payload"
+
+  let to_payload (v : value) : Parsetree.payload =
+    Exp.to_payload v.exp
 end)
+
+(** {1 Payload extraction} *)
+
+let int_of_payload (payload : Parsetree.payload) : int =
+  int_of_expression (Exp.of_payload payload)
+
+let string_of_payload (payload : Parsetree.payload) : string =
+  string_of_expression (Exp.of_payload payload)
+
+let bool_of_payload (payload : Parsetree.payload) : bool =
+  bool_of_expression (Exp.of_payload payload)
 
 (** {1 Payload construction (ctd) *)
 
 let payload_of_int (i : int) : Parsetree.payload =
-  payload_of_expression (Exp.of_int i)
+  Exp.to_payload (Exp.of_int i)
 
 (** {1 Coercions (ctd)} *)
 
@@ -590,3 +933,6 @@ let update f ref =
 
 let mutate f ref =
   ref := f !ref
+end
+
+include Footer

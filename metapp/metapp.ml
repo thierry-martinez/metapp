@@ -1,4 +1,5 @@
-include Metapp_preutils
+include Metapp_preutils.Header
+include Metapp_preutils.Footer
 
 (** {1 General purpose functions} *)
 
@@ -82,6 +83,26 @@ module Mb = struct
       [%e Ast_helper.Mb.mk (map_loc (get_mod_name "Mb") mod_name) s]
     else
       [%e Ast_helper.Mb.mk mod_name s]]
+end
+
+(** {1 Expressions} *)
+
+module Exp = struct
+  include Metapp_preutils.Exp
+
+  let send ?loc ?attrs (expression : Parsetree.expression)
+      (str : Ast_helper.str) : Parsetree.expression =
+    [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+      Ast_helper.Exp.send ?loc ?attrs expression str]
+    else [%e
+      Ast_helper.Exp.send ?loc ?attrs expression str.txt]]
+
+  let newtype ?loc ?attrs (name : Ast_helper.str) (ty : Parsetree.expression)
+      : Parsetree.expression =
+    [%meta if Sys.ocaml_version >= "4.05.0" then [%e
+      Ast_helper.Exp.newtype ?loc ?attrs name ty]
+    else [%e
+      Ast_helper.Exp.newtype ?loc ?attrs name.txt ty]]
 end
 
 (** {1 Mapper for [[@if bool]] notation} *)
@@ -264,12 +285,160 @@ let destruct_sig_type (item : Types.signature_item) : sig_type option =
 (** {1 Type construction} *)
 
 module Typ = struct
-  let poly (names : string list) (ty : Parsetree.core_type)
+  include Metapp_preutils.Typ
+
+  let poly (names : Ast_helper.str list) (ty : Parsetree.core_type)
       : Parsetree.core_type =
     let names =
       [%meta if Sys.ocaml_version >= "4.05.0" then [%e
-        List.map mkloc names]
+        names]
       else [%e
-        names]] in
+        List.map (fun (name : Ast_helper.str) -> name.txt) names]] in
     Ast_helper.Typ.poly names ty
+
+  let poly_name name =
+    [%meta if Sys.ocaml_version >= "4.05.0" then [%e
+      (name : Ast_helper.str).txt]
+    else [%e
+      name]]
+end
+
+(** {1 Row fields} *)
+
+module Rf = struct
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%stri
+    type desc = Parsetree.row_field_desc =
+      | Rtag of Asttypes.label Location.loc * bool * Parsetree.core_type list
+      | Rinherit of Parsetree.core_type]
+  else [%stri
+    type desc =
+      | Rtag of Asttypes.label Location.loc * bool * Parsetree.core_type list
+      | Rinherit of Parsetree.core_type]]
+
+  let to_loc (_rf : Parsetree.row_field) : Location.t =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      _rf.prf_loc]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      match _rf with
+      | Rtag (label, _, _, _) -> label.loc
+      | Rinherit _ -> !Ast_helper.default_loc]
+    else [%e
+      !Ast_helper.default_loc]]
+
+  let to_attributes (rf : Parsetree.row_field) : Parsetree.attributes =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      rf.prf_attributes]
+    else [%e
+      match rf with
+      | Rtag (_, attributes, _, _) -> attributes
+      | Rinherit _ -> []]]
+
+  let destruct (rf : Parsetree.row_field) : desc =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      rf.prf_desc]
+    else [%e
+      match rf with
+      | Rtag (label, _, has_constant, args) ->
+          let label =
+            [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+              label]
+            else [%e
+              mkloc label]] in
+          Rtag (label, has_constant, args)
+      | Rinherit ty -> Rinherit ty]]
+
+  let tag ?loc:_loc ?attrs (label : Asttypes.label Location.loc)
+      (has_constant : bool) (args : Parsetree.core_type list)
+      : Parsetree.row_field =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Ast_helper.Rf.tag ?loc:_loc ?attrs label has_constant args]
+    else [%e
+      let label =
+        [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+          label]
+        else [%e
+          label.txt]] in
+      Rtag (label, Stdcompat.Option.value ~default:[] attrs, has_constant,
+        args)]]
+
+  let inherit_ ?loc:_loc ?attrs:_attrs (core_type : Parsetree.core_type)
+      : Parsetree.row_field =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Ast_helper.Rf.mk ?loc:_loc ?attrs:_attrs (Rinherit core_type)]
+    else [%e
+      Rinherit core_type]]
+end
+
+(** {1 Object fields} *)
+
+module Of = struct
+  [%%meta if Sys.ocaml_version >= "4.06.0" then [%stri
+    type t = Parsetree.object_field]
+  else if Sys.ocaml_version >= "4.05.0" then [%stri
+    type t =
+      Asttypes.label Location.loc * Parsetree.attributes * Parsetree.core_type]
+  else [%stri
+    type t = Asttypes.label * Parsetree.attributes * Parsetree.core_type]]
+
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%stri
+    type desc = Parsetree.object_field_desc =
+      | Otag of Asttypes.label Location.loc * Parsetree.core_type
+      | Oinherit of Parsetree.core_type]
+  else [%stri
+    type desc =
+      | Otag of Asttypes.label Location.loc * Parsetree.core_type
+      | Oinherit of Parsetree.core_type]]
+
+  let to_loc (_of : t) : Location.t =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      _of.pof_loc]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      match _of with
+      | Otag (label, _, _) -> label.loc
+      | Oinherit _ -> !Ast_helper.default_loc]
+    else if Sys.ocaml_version >= "4.05.0" then [%e
+      let (label, _, _) = _of in
+      label.loc]
+    else [%e
+      !Ast_helper.default_loc]]
+
+  let to_attributes (of_ : t) : Parsetree.attributes =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      of_.pof_attributes]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      match of_ with
+      | Otag (_, attributes, _) -> attributes
+      | Oinherit _ -> []]
+    else [%e
+      let (_, attributes, _) = of_ in
+      attributes]]
+
+  let destruct (of_ : t) : desc =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      of_.pof_desc]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      match of_ with
+      | Otag (label, _, ty) -> Otag (label, ty)
+      | Oinherit ty -> Oinherit ty]
+    else [%e
+      let (label, _, ty) = of_ in
+      Otag (mkloc label, ty)]]
+
+  let tag ?loc:_loc ?attrs (label : Asttypes.label Location.loc)
+      (ty : Parsetree.core_type) : t =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Ast_helper.Of.tag ?loc:_loc ?attrs label ty]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      Otag (label, Stdcompat.Option.value ~default:[] attrs, ty)]
+    else [%e
+      (label.txt, Stdcompat.Option.value ~default:[] attrs, ty)]]
+
+  let inherit_ ?loc:_loc ?attrs:_attrs (_ty : Parsetree.core_type) : t =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Ast_helper.Of.mk ?loc:_loc ?attrs:_attrs (Oinherit _ty)]
+    else if Sys.ocaml_version >= "4.06.0" then [%e
+      Oinherit _ty]
+    else [%e
+      failwith
+    "Metapp.Of.inherit_: inherit object field unavailable with OCaml <4.06.0"]]
 end

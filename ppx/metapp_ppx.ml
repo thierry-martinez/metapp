@@ -50,120 +50,63 @@ module rec AccuTypes : sig
       context : Metapp_api.context;
     }
 
-  type 'a holes = ((unit -> 'a) * escape) Accu.t ref
+  type 'a quotations = ((unit -> 'a) * escape) Accu.t ref
 
-  type 'a context = Location.t Accu.t ref
+  type 'a metapoints = Location.t Accu.t ref
 end = struct
   include AccuTypes
 end
-and MutableHoles : Metapp_api.HolesWithMakeS with type 'a x = 'a AccuHole.t =
-    Metapp_api.HolesWithMake (AccuHole)
-and AccuHole : Metapp_api.UnaryMake
-with type 'a t = 'a AccuTypes.holes
+and MutableQuotations : Metapp_api.QuotationsWithMakeS with
+type 'a x = 'a AccuQuotation.t =
+    Metapp_api.QuotationsWithMake (AccuQuotation)
+and AccuQuotation : Metapp_api.UnaryMakeS
+with type 'a t = 'a AccuTypes.quotations
     = struct
-  type 'a t = 'a AccuTypes.holes
+  type 'a t = 'a AccuTypes.quotations
 
   let make () =
     ref Accu.empty
 end
-and MutableContext : Metapp_api.HolesWithMakeS
-with type 'a x = 'a AccuContext.t = Metapp_api.HolesWithMake (AccuContext)
-and AccuContext : Metapp_api.UnaryMake
-with type 'a t = 'a AccuTypes.context = struct
-  type 'a t = 'a AccuTypes.context
+and MutableMetapoints : Metapp_api.MetapointsWithMakeS
+with type 'a x = 'a AccuMetapoint.t =
+    Metapp_api.MetapointsWithMake (AccuMetapoint)
+and AccuMetapoint : Metapp_api.UnaryMakeS
+with type 'a t = 'a AccuTypes.metapoints = struct
+  type 'a t = 'a AccuTypes.metapoints
 
   let make () =
     ref Accu.empty
 end
 
-module UnaryCounter = struct
-  type 'a t = Counter.t
+module type MetapointsMapperS =
+  functor (Metapoint : Metapp_api.MetapointS) -> sig
+    val map : Parsetree.payload -> Metapoint.t
+  end
 
-  let make = Counter.make
-end
-
-module MutableHolesCount = Metapp_api.HolesWithMake (UnaryCounter)
-
-module HoleMapper = struct
-  type 'a t = Parsetree.payload -> 'a
-end
-
-module HolesMapper = Metapp_api.Holes (HoleMapper)
-
-let holes_mapper ?(def : (instruction Location.loc -> unit) option)
-    (holes : HolesMapper.t) : Ast_mapper.mapper =
-  let expr (mapper : Ast_mapper.mapper) (e : Parsetree.expression)
-      : Parsetree.expression =
-    Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-    match e.pexp_desc with
-    | Pexp_extension ({ txt = "meta"; _ }, payload) ->
-        holes.expr payload
-    | _ -> Ast_mapper.default_mapper.expr mapper e in
-  let pat (mapper : Ast_mapper.mapper) (pat : Parsetree.pattern)
-      : Parsetree.pattern =
-    Ast_helper.with_default_loc pat.ppat_loc @@ fun () ->
-    match pat.ppat_desc with
-    | Ppat_extension ({ txt = "meta"; _ }, payload) ->
-        holes.pat payload
-    | _ -> Ast_mapper.default_mapper.pat mapper pat in
-  let handle_extension (e : Parsetree.extension) : bool =
-    match e with
-    | ({ txt = "metadef"; _ }, payload) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Definition (Metapp_preutils.structure_of_payload payload)));
-        true
-    | ({ txt = "metaload"; _ }, payload) ->
-        let load =
-          List.map Metapp_preutils.string_of_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.expression_of_payload payload)) in
-        Stdcompat.Option.get def (Metapp_preutils.mkloc (Load load));
-        true
-    | ({ txt = "metapackage"; _ }, payload) ->
-        let packages =
-          List.map Metapp_preutils.string_of_arbitrary_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.expression_of_payload payload)) in
-        Stdcompat.Option.get def (Metapp_preutils.mkloc (Packages packages));
-        true
-    | ({ txt = "metadir"; _ }, payload) ->
-        let directories =
-          List.map Metapp_preutils.string_of_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.expression_of_payload payload)) in
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Directories directories));
-        true
-    | ({ txt = "metaflags"; _ }, payload) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc
-          (Flags (List.map Metapp_preutils.string_of_expression
-            (Metapp_preutils.list_of_expression
-              (Metapp_preutils.expression_of_payload payload)))));
-        true
-    | ({ txt = "metaplainsource"; _ }, _payload) ->
-        Stdcompat.Option.get def (Metapp_preutils.mkloc Plainsource);
-        true
-    | _ -> false in
-  let structure_item (mapper : Ast_mapper.mapper)
-      (item : Parsetree.structure_item) : Parsetree.structure_item =
-    Ast_helper.with_default_loc item.pstr_loc @@ fun () ->
-    match item.pstr_desc with
-    | Pstr_extension (({ txt = "meta"; _ }, payload), _) ->
-        holes.structure_item payload
-    | Pstr_extension (e, _) when handle_extension e ->
-        Metapp_preutils.include_structure []
-    | _ -> Ast_mapper.default_mapper.structure_item mapper item in
-  let signature_item (mapper : Ast_mapper.mapper)
-      (item : Parsetree.signature_item) : Parsetree.signature_item =
-    Ast_helper.with_default_loc item.psig_loc @@ fun () ->
-    match item.psig_desc with
-    | Psig_extension (({ txt = "meta"; _ }, payload), _) ->
-        holes.signature_item payload
-    | Psig_extension (e, _) when handle_extension e ->
-        Metapp_preutils.include_signature []
-    | _ -> Ast_mapper.default_mapper.signature_item mapper item in
-  { Ast_mapper.default_mapper with expr; pat; structure_item; signature_item }
-
+let metapoint_mapper (mapper : (module MetapointsMapperS)) : Ast_mapper.mapper =
+  let module Mapper = (val mapper) in
+  let module Mapper' (Metapoint : Metapp_api.MetapointS) = struct
+    let map (mapper : Ast_mapper.mapper) (m : Metapoint.t) : Metapoint.t =
+      Ast_helper.with_default_loc (Metapoint.to_loc m) @@ fun () ->
+      match Metapoint.destruct_extension m with
+      | Some ({ txt = "meta"; _ }, payload) ->
+          let module Map = Mapper (Metapoint) in
+          Map.map payload
+    | _ -> Metapoint.mapper.get Ast_mapper.default_mapper mapper m
+  end in
+  { Ast_mapper.default_mapper with
+    expr = (let module M = Mapper' (Metapp_api.Exp) in M.map);
+    pat = (let module M = Mapper' (Metapp_api.Pat) in M.map);
+    typ = (let module M = Mapper' (Metapp_api.Typ) in M.map);
+    class_type = (let module M = Mapper' (Metapp_api.Cty) in M.map);
+    class_type_field = (let module M = Mapper' (Metapp_api.Ctf) in M.map);
+    class_expr = (let module M = Mapper' (Metapp_api.Cl) in M.map);
+    class_field = (let module M = Mapper' (Metapp_api.Cf) in M.map);
+    module_type = (let module M = Mapper' (Metapp_api.Mty) in M.map);
+    module_expr = (let module M = Mapper' (Metapp_api.Mod) in M.map);
+    signature_item = (let module M = Mapper' (Metapp_api.Sigi) in M.map);
+    structure_item = (let module M = Mapper' (Metapp_api.Stri) in M.map);
+  }
 
 (*
 module UnaryInt = struct
@@ -173,11 +116,12 @@ end
 module HolesCount = Metapp_api.Holes (UnaryInt)
 *)
 
-let unmut_context (context : MutableContext.t) : Metapp_api.OptionArrayHoles.t =
-  let module Map = Metapp_api.HolesMap (MutableContext)
-      (Metapp_api.OptionArrayHoles)
+let unmut_metapoints (context : MutableMetapoints.t)
+    : Metapp_api.OptionArrayMetapoints.t =
+  let module Map = Metapp_api.MetapointMap (MutableMetapoints)
+      (Metapp_api.OptionArrayMetapoints)
       (struct
-        type 'a x = 'a AccuContext.t
+        type 'a x = 'a AccuMetapoint.t
 
         type 'a y = 'a option array
 
@@ -185,11 +129,11 @@ let unmut_context (context : MutableContext.t) : Metapp_api.OptionArrayHoles.t =
       end) in
   Map.map context
 
-let unmut_loc (context : MutableContext.t) : Metapp_api.LocationHoles.t =
-  let module Map = Metapp_api.HolesMap (MutableContext)
-      (Metapp_api.LocationHoles)
-      (struct
-        type 'a x = 'a AccuContext.t
+let unmut_loc (context : MutableMetapoints.t)
+    : Metapp_api.MetapointsLocation.t =
+  let module Map = Metapp_api.MetapointMap (MutableMetapoints)
+      (Metapp_api.MetapointsLocation) (struct
+        type 'a x = 'a AccuMetapoint.t
 
         type _ y = Location.t array
 
@@ -197,16 +141,17 @@ let unmut_loc (context : MutableContext.t) : Metapp_api.LocationHoles.t =
       end) in
   Map.map context
 
-let unmut_subholes (context : MutableHoles.t) : Metapp_api.ArrayHoles.t =
-  let module Map = Metapp_api.HolesMap (MutableHoles) (Metapp_api.ArrayHoles)
-      (struct
-        type 'a x = 'a AccuHole.t
+let unmut_subquotations (context : MutableQuotations.t)
+    : Metapp_api.ArrayQuotations.t =
+  let module Map = Metapp_api.QuotationMap (MutableQuotations)
+      (Metapp_api.ArrayQuotations) (struct
+        type 'a x = 'a AccuQuotation.t
 
-        type 'a y = 'a Metapp_api.ArrayHole.t
+        type 'a y = 'a Metapp_api.ArrayQuotation.t
 
         let map accu = Array.map
             (fun (fill, { AccuTypes.context; _ }) ->
-              ({ context; fill } : 'a Metapp_api.ArrayHole.hole))
+              ({ context; fill } : 'a Metapp_api.ArrayQuotation.quotation))
             (Accu.to_array !accu)
       end) in
   Map.map context
@@ -228,11 +173,11 @@ let context_var = "__context"
 
 let fill_var = "__fill"
 
-let holes_field = "holes"
+let metapoints_field = "metapoints"
 
 let loc_field = "loc"
 
-let sub_holes_field = "sub_holes"
+let subquotations_field = "subquotations"
 
 let field_get (expr : Parsetree.expression) (field : string)
     : Parsetree.expression =
@@ -241,194 +186,172 @@ let field_get (expr : Parsetree.expression) (field : string)
 let context_get (field : string) : Parsetree.expression =
   field_get (Metapp_preutils.ident (Lident context_var)) field
 
-let unhandled_hole _ =
-  assert false
-
-let replace_holes (contents : Metapp_api.OptionArrayHoles.t)
+let replace_metapoints (contents : Metapp_api.OptionArrayMetapoints.t)
     : Ast_mapper.mapper =
-  let expr (payload : Parsetree.payload) : Parsetree.expression =
-    Stdcompat.Option.get
-      contents.expr.(Metapp_preutils.int_of_payload payload) in
-  let pat (payload : Parsetree.payload) : Parsetree.pattern =
-    Stdcompat.Option.get
-      contents.pat.(Metapp_preutils.int_of_payload payload) in
-  let typ (payload : Parsetree.payload) : Parsetree.core_type =
-    Stdcompat.Option.get
-      contents.typ.(Metapp_preutils.int_of_payload payload) in
-  let class_type (payload : Parsetree.payload) : Parsetree.class_type =
-    Stdcompat.Option.get
-      contents.class_type.(Metapp_preutils.int_of_payload payload) in
-  let class_type_field (payload : Parsetree.payload)
-      : Parsetree.class_type_field =
-    Stdcompat.Option.get
-      contents.class_type_field.(Metapp_preutils.int_of_payload payload) in
-  let class_expr (payload : Parsetree.payload) : Parsetree.class_expr =
-    Stdcompat.Option.get
-      contents.class_expr.(Metapp_preutils.int_of_payload payload) in
-  let class_field (payload : Parsetree.payload) : Parsetree.class_field =
-    Stdcompat.Option.get
-      contents.class_field.(Metapp_preutils.int_of_payload payload) in
-  let module_type (payload : Parsetree.payload) : Parsetree.module_type =
-    Stdcompat.Option.get
-      contents.module_type.(Metapp_preutils.int_of_payload payload) in
-  let module_expr (payload : Parsetree.payload) : Parsetree.module_expr =
-    Stdcompat.Option.get
-      contents.module_expr.(Metapp_preutils.int_of_payload payload) in
-  let signature_item (payload : Parsetree.payload) : Parsetree.signature_item =
-    Stdcompat.Option.get
-      contents.signature_item.(Metapp_preutils.int_of_payload payload) in
-  let structure_item (payload : Parsetree.payload) : Parsetree.structure_item =
-    Stdcompat.Option.get
-      contents.structure_item.(Metapp_preutils.int_of_payload payload) in
-  holes_mapper {
-    expr; pat; typ; class_type; class_type_field; class_expr; class_field;
-    module_type; module_expr; signature_item; structure_item;
-    signature = unhandled_hole; structure = unhandled_hole; }
+  let module Mapper (Metapoint : Metapp_api.MetapointS) = struct
+    module Accessor =
+      Metapoint.MetapointAccessor (Metapp_api.OptionArrayMetapoints)
+
+    let map (payload : Parsetree.payload) : Metapoint.t =
+      Stdcompat.Option.get
+        (Accessor.get contents).(Metapp_preutils.int_of_payload payload)
+  end in
+  metapoint_mapper (module Mapper)
 
 let metapp_api = Longident.Lident "Metapp_api"
 
-let rec extract_subexpressions (holes : MutableHoles.t) : Ast_mapper.mapper =
-  let push_hole (type hole) (hole : hole)
-      (get_mapper : Ast_mapper.mapper -> Ast_mapper.mapper -> hole -> hole)
-      (accu : hole AccuTypes.holes) (field_name : string)
-      : Parsetree.expression =
-    let (mapper, k) = extract_holes () in
-    let hole = get_mapper mapper mapper hole in
-    let escape = k () in
-    let fill () =
-      let mapper = replace_holes escape.context.holes in
-      get_mapper mapper mapper hole in
-    let index = Metapp_preutils.update (Accu.add (fill, escape)) accu in
-    Ast_helper.Exp.let_ Nonrecursive
-      [Ast_helper.Vb.mk (Metapp_preutils.Pat.record [
-         (Ldot (Ldot (metapp_api, "ArrayHole"), "context"),
-           Metapp_preutils.Pat.var context_var);
-           (Lident "fill", Metapp_preutils.Pat.var fill_var)])
-        (array_get (field_get (context_get sub_holes_field) field_name) index)]
-      (Metapp_preutils.sequence (List.map get_expression escape.instructions @
-        [Metapp_preutils.apply (Metapp_preutils.ident (Lident fill_var))
-          [Metapp_preutils.Exp.of_unit ()]])) in
+let rec extract_subquotations
+    (quotations : MutableQuotations.t) : Ast_mapper.mapper =
   let expr (mapper : Ast_mapper.mapper) (e : Parsetree.expression)
       : Parsetree.expression =
     Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-    match e.pexp_desc with
-    | Pexp_extension ({ txt = ("e" | "expr"); _ }, payload) ->
-        push_hole (Metapp_preutils.expression_of_payload payload)
-          (fun mapper -> mapper.expr) holes.expr Metapp_api.holes_name.expr
-    | Pexp_extension ({ txt = ("p" | "pat"); _ }, payload) ->
-        push_hole (Metapp_preutils.pattern_of_payload payload)
-          (fun mapper -> mapper.pat) holes.pat Metapp_api.holes_name.pat
-    | Pexp_extension ({ txt = ("t" | "type"); _ }, payload) ->
-        push_hole (Metapp_preutils.core_type_of_payload payload)
-          (fun mapper -> mapper.typ) holes.typ Metapp_api.holes_name.typ
-    | Pexp_extension ({ txt = "sig"; _ }, payload) ->
-        push_hole (Metapp_preutils.signature_of_payload payload)
-          (fun mapper -> mapper.signature) holes.signature
-          Metapp_api.holes_name.signature
-    | Pexp_extension ({ txt = "sigi"; _ }, payload) ->
-        push_hole (Metapp_preutils.signature_item_of_payload payload)
-          (fun mapper -> mapper.signature_item) holes.signature_item
-          Metapp_api.holes_name.signature_item
-    | Pexp_extension ({ txt = "str"; _ }, payload) ->
-        push_hole (Metapp_preutils.structure_of_payload payload)
-          (fun mapper -> mapper.structure) holes.structure
-          Metapp_api.holes_name.structure
-    | Pexp_extension ({ txt = "stri"; _ }, payload) ->
-        push_hole (Metapp_preutils.structure_item_of_payload payload)
-          (fun mapper -> mapper.structure_item) holes.structure_item
-          Metapp_api.holes_name.structure_item
-    | _ -> Ast_mapper.default_mapper.expr mapper e in
+    match
+      match e.pexp_desc with
+      | Pexp_extension ({ txt; _ }, payload) ->
+          Stdcompat.Option.map (fun antiquotable -> (antiquotable, payload))
+          ((match txt with
+          | "e" | "expr" -> Some (module Metapp_api.Exp)
+          | "p" | "pat" -> Some (module Metapp_api.Pat)
+          | "t" | "type" -> Some (module Metapp_api.Typ)
+          | "sig" -> Some (module Metapp_api.Sig)
+          | "sigi" -> Some (module Metapp_api.Sigi)
+          | "str" -> Some (module Metapp_api.Str)
+          | "stri" -> Some (module Metapp_api.Stri)
+          | _ -> None
+          ) : ((module Metapp_api.QuotationS) option))
+      | _ -> None
+    with
+    | None -> Ast_mapper.default_mapper.expr mapper e
+    | Some (antiquotable, payload) ->
+        let module M = (val antiquotable) in
+        let module Quotation = M.QuotationAccessor (MutableQuotations) in
+        let module Name = M.QuotationAccessor (Metapp_api.QuotationName) in
+        let quotation = M.of_payload payload in
+        let (mapper, k) = extract_metapoints () in
+        let quotation = M.mapper.get mapper mapper quotation in
+        let escape = k () in
+        let fill () =
+          let mapper = replace_metapoints escape.context.metapoints in
+          M.mapper.get mapper mapper quotation in
+        let index =
+          Metapp_preutils.update (Accu.add (fill, escape))
+            (Quotation.get quotations) in
+        let field_name = Name.get Metapp_api.quotation_name in
+        Ast_helper.Exp.let_ Nonrecursive
+          [Ast_helper.Vb.mk (Metapp_preutils.Pat.record [
+             (Ldot (Ldot (metapp_api, "ArrayQuotation"), "context"),
+               Metapp_preutils.Pat.var context_var);
+               (Lident "fill", Metapp_preutils.Pat.var fill_var)])
+            (array_get
+              (field_get (context_get subquotations_field) field_name) index)]
+          (Metapp_preutils.sequence
+            (List.map get_expression escape.instructions @
+              [Metapp_preutils.apply (Metapp_preutils.ident (Lident fill_var))
+                [Metapp_preutils.Exp.of_unit ()]])) in
   { Ast_mapper.default_mapper with expr }
 
-and extract_holes () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
+and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
   let accu = ref [] in
   let push (instruction : instruction Location.loc) : unit =
     Metapp_preutils.mutate (List.cons instruction) accu in
-  let holes = MutableContext.make () in
-  let sub_holes = MutableHoles.make () in
-  let push_hole (field : string)
-      (holes_accu : _ AccuTypes.context)
-      (payload : Parsetree.payload) : Parsetree.extension =
-    let e = Metapp_preutils.expression_of_payload payload in
-    let mapper = extract_subexpressions sub_holes in
-    let extracted_expr = mapper.expr mapper e in
-    let index =
-      Metapp_preutils.update (Accu.add !Ast_helper.default_loc) holes_accu in
-    let hole_field = field_get (context_get holes_field) field in
-    let extracted_expr =
-      Metapp_preutils.Exp.some
-        (Metapp_preutils.apply
-          (Metapp_preutils.ident
-            (Ldot (Lident "Ast_helper", "with_default_loc")))
-          [array_get (field_get (context_get loc_field) field) index;
-            Ast_helper.Exp.function_
-              [Ast_helper.Exp.case (Metapp_preutils.Pat.of_unit ())
-                extracted_expr]]) in
-    push (Metapp_preutils.mkloc (Exp
-      (array_set hole_field index extracted_expr)));
-    extension_of_index index in
+  let metapoints = MutableMetapoints.make () in
+  let subquotations = MutableQuotations.make () in
   let push_instruction (instruction : instruction Location.loc) : unit =
     let instruction =
       match instruction.txt with
       | Definition structure ->
-          let mapper = extract_subexpressions sub_holes in
+          let mapper = extract_subquotations subquotations in
           { instruction with txt =
             Definition (mapper.structure mapper structure) }
       | _ -> instruction in
     push instruction in
-  let expr (payload : Parsetree.payload) : Parsetree.expression =
-    Ast_helper.Exp.extension
-      (push_hole Metapp_api.holes_name.expr holes.expr payload) in
-  let pat (payload : Parsetree.payload) : Parsetree.pattern =
-    Ast_helper.Pat.extension
-      (push_hole Metapp_api.holes_name.pat holes.pat payload) in
-  let typ (payload : Parsetree.payload) : Parsetree.core_type =
-    Ast_helper.Typ.extension
-      (push_hole Metapp_api.holes_name.typ holes.typ payload) in
-  let class_type (payload : Parsetree.payload) : Parsetree.class_type =
-    Ast_helper.Cty.extension
-      (push_hole Metapp_api.holes_name.class_type
-        holes.class_type payload) in
-  let class_type_field (payload : Parsetree.payload)
-      : Parsetree.class_type_field =
-    Ast_helper.Ctf.extension
-      (push_hole Metapp_api.holes_name.class_type_field
-        holes.class_type_field payload) in
-  let class_expr (payload : Parsetree.payload) : Parsetree.class_expr =
-    Ast_helper.Cl.extension
-      (push_hole Metapp_api.holes_name.class_expr
-        holes.class_expr payload) in
-  let class_field (payload : Parsetree.payload) : Parsetree.class_field =
-    Ast_helper.Cf.extension
-      (push_hole Metapp_api.holes_name.class_field
-        holes.class_field payload) in
-  let module_type (payload : Parsetree.payload) : Parsetree.module_type =
-    Ast_helper.Mty.extension
-      (push_hole Metapp_api.holes_name.module_type
-        holes.module_type payload) in
-  let module_expr (payload : Parsetree.payload) : Parsetree.module_expr =
-    Ast_helper.Mod.extension
-      (push_hole Metapp_api.holes_name.module_expr
-        holes.module_expr payload) in
-  let signature_item (payload : Parsetree.payload) : Parsetree.signature_item =
-    Ast_helper.Sig.extension
-      (push_hole Metapp_api.holes_name.signature_item
-        holes.signature_item payload) in
-  let structure_item (payload : Parsetree.payload) : Parsetree.structure_item =
-    Ast_helper.Str.extension
-      (push_hole Metapp_api.holes_name.structure_item
-        holes.structure_item payload) in
-  let mapper =
-    holes_mapper ~def:push_instruction
-      { expr; pat; typ; class_type; class_type_field; class_expr; class_field;
-        module_type; module_expr; signature_item; structure_item;
-        signature = unhandled_hole; structure = unhandled_hole } in
+  let module Mapper (Metapoint : Metapp_api.MetapointS) = struct
+    module Accessor = Metapoint.MetapointAccessor (MutableMetapoints)
+
+    module Name = Metapoint.MetapointAccessor (Metapp_api.MetapointName)
+
+    let map (payload : Parsetree.payload) : Metapoint.t =
+      let e = Metapp_preutils.Exp.of_payload payload in
+      let mapper = extract_subquotations subquotations in
+      let extracted_expr = mapper.expr mapper e in
+      let index =
+        Metapp_preutils.update (Accu.add !Ast_helper.default_loc)
+          (Accessor.get metapoints) in
+      let field = Name.get Metapp_api.metapoint_name in
+      let metapoint_field = field_get (context_get metapoints_field) field in
+      let extracted_expr =
+        Metapp_preutils.Exp.some
+          (Metapp_preutils.apply
+            (Metapp_preutils.ident
+              (Ldot (Lident "Ast_helper", "with_default_loc")))
+            [array_get (field_get (context_get loc_field) field) index;
+              Ast_helper.Exp.function_
+                [Ast_helper.Exp.case (Metapp_preutils.Pat.of_unit ())
+                  extracted_expr]]) in
+      push (Metapp_preutils.mkloc (Exp
+        (array_set metapoint_field index extracted_expr)));
+      Metapoint.extension (extension_of_index index)
+  end in
+  let meta_mapper = metapoint_mapper (module Mapper) in
+  let handle_extension (e : Parsetree.extension) : bool =
+    match e with
+    | ({ txt = "metadef"; _ }, payload) ->
+        push_instruction (Metapp_preutils.mkloc
+          (Definition (Metapp_preutils.Str.of_payload payload)));
+        true
+    | ({ txt = "metaload"; _ }, payload) ->
+        let load =
+          List.map Metapp_preutils.string_of_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.Exp.of_payload payload)) in
+        push_instruction (Metapp_preutils.mkloc (Load load));
+        true
+    | ({ txt = "metapackage"; _ }, payload) ->
+        let packages =
+          List.map Metapp_preutils.string_of_arbitrary_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.Exp.of_payload payload)) in
+        push_instruction (Metapp_preutils.mkloc (Packages packages));
+        true
+    | ({ txt = "metadir"; _ }, payload) ->
+        let directories =
+          List.map Metapp_preutils.string_of_expression (
+            Metapp_preutils.list_of_tuple (
+              Metapp_preutils.Exp.of_payload payload)) in
+        push_instruction (Metapp_preutils.mkloc
+          (Directories directories));
+        true
+    | ({ txt = "metaflags"; _ }, payload) ->
+        push_instruction (Metapp_preutils.mkloc
+          (Flags (List.map Metapp_preutils.string_of_expression
+            (Metapp_preutils.list_of_expression
+              (Metapp_preutils.Exp.of_payload payload)))));
+        true
+    | ({ txt = "metaplainsource"; _ }, _payload) ->
+        push_instruction (Metapp_preutils.mkloc Plainsource);
+        true
+    | _ -> false in
+  let structure_item (mapper : Ast_mapper.mapper)
+      (item : Parsetree.structure_item) : Parsetree.structure_item =
+    Ast_helper.with_default_loc item.pstr_loc @@ fun () ->
+    match item.pstr_desc with
+    | Pstr_extension (e, _) when handle_extension e ->
+        Metapp_preutils.include_structure []
+    | _ -> meta_mapper.structure_item mapper item in
+  let signature_item (mapper : Ast_mapper.mapper)
+      (item : Parsetree.signature_item) : Parsetree.signature_item =
+    Ast_helper.with_default_loc item.psig_loc @@ fun () ->
+    match item.psig_desc with
+    | Psig_extension (e, _) when handle_extension e ->
+        Metapp_preutils.include_signature []
+    | _ -> meta_mapper.signature_item mapper item in
+  let mapper = { meta_mapper with structure_item; signature_item } in
   let k () : AccuTypes.escape = {
     instructions = List.rev !accu;
     context = {
-      holes = unmut_context holes;
-      loc = unmut_loc holes;
-      sub_holes = unmut_subholes sub_holes; }} in
+      metapoints = unmut_metapoints metapoints;
+      loc = unmut_loc metapoints;
+      subquotations = unmut_subquotations subquotations; }} in
   (mapper, k)
 
 let output_structure (channel : out_channel) (s : Parsetree.structure) =
@@ -550,7 +473,7 @@ let compile_and_load (options : options) (structure : Parsetree.structure)
 
 let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
     (s : 'a) : 'a =
-  let (mapper, k) = extract_holes () in
+  let (mapper, k) = extract_metapoints () in
   let s = get_mapper mapper mapper s in
   match k () with { instructions; context } ->
   Metapp_api.top_context := Some context;
@@ -615,7 +538,7 @@ let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
       Fl_dynload.load_packages options.packages;
     end;
   compile_and_load options parsetree;
-  let mapper = replace_holes context.holes in
+  let mapper = replace_metapoints context.metapoints in
   get_mapper mapper mapper s
 
 let mapper : Ast_mapper.mapper =
