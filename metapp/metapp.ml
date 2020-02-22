@@ -92,7 +92,7 @@ module Exp = struct
 
   let send ?loc ?attrs (expression : Parsetree.expression)
       (str : Ast_helper.str) : Parsetree.expression =
-    [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+    [%meta if Sys.ocaml_version >= "4.05.0" then [%e
       Ast_helper.Exp.send ?loc ?attrs expression str]
     else [%e
       Ast_helper.Exp.send ?loc ?attrs expression str.txt]]
