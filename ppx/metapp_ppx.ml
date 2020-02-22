@@ -27,26 +27,86 @@ let array_set (a : Parsetree.expression) (index : int)
   Metapp_preutils.apply (Metapp_preutils.ident (Ldot (Lident "Array", "set")))
     [a; i; v]
 
-type instruction =
-  | Load of string list
-  | Packages of string list
-  | Directories of string list
-  | Flags of string list
-  | Exp of Parsetree.expression
-  | Definition of Parsetree.structure
-  | Plainsource
+let string_list_of_payload (payload : Parsetree.payload) : string list =
+  List.map Metapp_preutils.string_of_arbitrary_expression
+    (Metapp_preutils.list_of_tuple (Metapp_preutils.Exp.of_payload payload))
 
-let get_expression (instruction : instruction Location.loc)
+module Options = struct
+  type t = {
+      packages : string list;
+      directories : string list;
+      flags : string list;
+      plainsource : bool;
+      debug_findlib : bool;
+    }
+
+  let empty = {
+    packages = [];
+    directories = [];
+    flags = [];
+    plainsource = false;
+    debug_findlib = false;
+  }
+
+  let rev options =
+    { options with
+      packages = List.rev options.packages;
+      directories = List.rev options.directories;
+      flags = List.rev options.flags }
+
+  let add_directories directories options =
+    { options with
+      directories = List.rev_append directories options.directories }
+
+  let add_packages packages options =
+    { options with
+      packages = List.rev_append packages options.packages }
+
+  let add_flags flags options =
+    { options with
+      flags = List.rev_append flags options.flags }
+
+  let set_plainsource plainsource options =
+    { options with plainsource }
+
+  let set_debug_findlib debug_findlib options =
+    { options with debug_findlib }
+
+  let handle (({ txt; _ }, payload) : Parsetree.extension) : (t -> t) option =
+    match txt with
+    | "metaload" ->
+        let add_object_file object_file =
+          Dynlink.loadfile object_file;
+          let dir_name = Filename.dirname object_file in
+          if dir_name = Filename.current_dir_name then
+            None
+          else
+            Some dir_name in
+        Some (add_directories (List.filter_map add_object_file
+          (string_list_of_payload payload)))
+    | "metapackage" -> Some (add_packages (string_list_of_payload payload))
+    | "metadir" -> Some (add_directories (string_list_of_payload payload))
+    | "metaflag" -> Some (add_flags (string_list_of_payload payload))
+    | "metaplainsource" -> Some (set_plainsource true)
+    | "metadebug_findlib" -> Some (set_debug_findlib true)
+    | _ -> None
+end
+
+type instruction =
+  | Expression of Parsetree.expression
+  | Definition of Parsetree.structure Location.loc
+
+let get_expression (instruction : instruction)
     : Parsetree.expression =
-  match instruction.txt with
-  | Exp expression -> expression
-  | _ ->
-      Location.raise_errorf ~loc:instruction.loc
+  match instruction with
+  | Expression expression -> expression
+  | Definition definition ->
+      Location.raise_errorf ~loc:definition.loc
         "Definitions are only allowed at top-level"
 
 module rec AccuTypes : sig
   type escape = {
-      instructions : instruction Location.loc list;
+      instructions : instruction list;
       context : Metapp_api.context;
     }
 
@@ -252,28 +312,15 @@ let rec extract_subquotations
 
 and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
   let accu = ref [] in
-  let push (instruction : instruction Location.loc) : unit =
-    Metapp_preutils.mutate (List.cons instruction) accu in
   let metapoints = MutableMetapoints.make () in
   let subquotations = MutableQuotations.make () in
-  let push_instruction (instruction : instruction Location.loc) : unit =
-    let instruction =
-      match instruction.txt with
-      | Definition structure ->
-          let mapper = extract_subquotations subquotations in
-          { instruction with txt =
-            Definition (mapper.structure mapper structure) }
-      | _ -> instruction in
-    push instruction in
+  let mapper_subquotations = extract_subquotations subquotations in
   let module Mapper (Metapoint : Metapp_api.MetapointS) = struct
     module Accessor = Metapoint.MetapointAccessor (MutableMetapoints)
-
     module Name = Metapoint.MetapointAccessor (Metapp_api.MetapointName)
-
     let map (payload : Parsetree.payload) : Metapoint.t =
       let e = Metapp_preutils.Exp.of_payload payload in
-      let mapper = extract_subquotations subquotations in
-      let extracted_expr = mapper.expr mapper e in
+      let extracted_expr = mapper_subquotations.expr mapper_subquotations e in
       let index =
         Metapp_preutils.update (Accu.add !Ast_helper.default_loc)
           (Accessor.get metapoints) in
@@ -288,64 +335,27 @@ and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
               Ast_helper.Exp.function_
                 [Ast_helper.Exp.case (Metapp_preutils.Pat.of_unit ())
                   extracted_expr]]) in
-      push (Metapp_preutils.mkloc (Exp
-        (array_set metapoint_field index extracted_expr)));
+      accu |> Metapp_preutils.mutate (List.cons
+        (Expression (array_set metapoint_field index extracted_expr)));
       Metapoint.extension (extension_of_index index)
   end in
   let meta_mapper = metapoint_mapper (module Mapper) in
-  let handle_extension (e : Parsetree.extension) : bool =
-    match e with
-    | ({ txt = "metadef"; _ }, payload) ->
-        push_instruction (Metapp_preutils.mkloc
-          (Definition (Metapp_preutils.Str.of_payload payload)));
-        true
-    | ({ txt = "metaload"; _ }, payload) ->
-        let load =
-          List.map Metapp_preutils.string_of_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.Exp.of_payload payload)) in
-        push_instruction (Metapp_preutils.mkloc (Load load));
-        true
-    | ({ txt = "metapackage"; _ }, payload) ->
-        let packages =
-          List.map Metapp_preutils.string_of_arbitrary_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.Exp.of_payload payload)) in
-        push_instruction (Metapp_preutils.mkloc (Packages packages));
-        true
-    | ({ txt = "metadir"; _ }, payload) ->
-        let directories =
-          List.map Metapp_preutils.string_of_expression (
-            Metapp_preutils.list_of_tuple (
-              Metapp_preutils.Exp.of_payload payload)) in
-        push_instruction (Metapp_preutils.mkloc
-          (Directories directories));
-        true
-    | ({ txt = "metaflags"; _ }, payload) ->
-        push_instruction (Metapp_preutils.mkloc
-          (Flags (List.map Metapp_preutils.string_of_expression
-            (Metapp_preutils.list_of_expression
-              (Metapp_preutils.Exp.of_payload payload)))));
-        true
-    | ({ txt = "metaplainsource"; _ }, _payload) ->
-        push_instruction (Metapp_preutils.mkloc Plainsource);
-        true
-    | _ -> false in
-  let structure_item (mapper : Ast_mapper.mapper)
-      (item : Parsetree.structure_item) : Parsetree.structure_item =
-    Ast_helper.with_default_loc item.pstr_loc @@ fun () ->
-    match item.pstr_desc with
-    | Pstr_extension (e, _) when handle_extension e ->
-        Metapp_preutils.include_structure []
-    | _ -> meta_mapper.structure_item mapper item in
-  let signature_item (mapper : Ast_mapper.mapper)
-      (item : Parsetree.signature_item) : Parsetree.signature_item =
-    Ast_helper.with_default_loc item.psig_loc @@ fun () ->
-    match item.psig_desc with
-    | Psig_extension (e, _) when handle_extension e ->
-        Metapp_preutils.include_signature []
-    | _ -> meta_mapper.signature_item mapper item in
-  let mapper = { meta_mapper with structure_item; signature_item } in
+  let module Metadef (Item : Metapp_preutils.ItemS) = struct
+    let map (mapper : Ast_mapper.mapper) (item : Item.t) : Item.t =
+      Ast_helper.with_default_loc (Item.to_loc item) @@ fun () ->
+      match Item.destruct_extension item with
+      | Some ({ txt = "metadef"; _ }, payload) ->
+          let defs =
+            mapper_subquotations.structure mapper_subquotations
+              (Metapp_preutils.Str.of_payload payload) in
+          accu |> Metapp_preutils.mutate (List.cons (Definition
+            (Metapp_preutils.mkloc defs)));
+          Item.of_list []
+      | _ -> Item.mapper.get meta_mapper mapper item
+  end in
+  let mapper = { meta_mapper with
+    structure_item = (let module M = Metadef (Metapp_preutils.Stri) in M.map);
+    signature_item = let module M = Metadef (Metapp_preutils.Sigi) in M.map } in
   let k () : AccuTypes.escape = {
     instructions = List.rev !accu;
     context = {
@@ -377,28 +387,7 @@ let compiler : compiler =
     archive_suffix = ".cma";
   }
 
-type options = {
-    packages : string list;
-    directories : string list;
-    flags : string list;
-    plainsource : bool;
-  }
-
-let empty_options = {
-  packages = [];
-  directories = [];
-  flags = [];
-  plainsource = false;
-}
-
-let rev_options ({ packages; directories; flags; plainsource } : options) = {
-  packages = List.rev packages;
-  directories = List.rev directories;
-  flags = List.rev flags;
-  plainsource;
-}
-
-let compile (options : options) (source_filename : string)
+let compile (options : Options.t) (source_filename : string)
     (object_filename : string) : unit =
   let flags =
     options.flags @
@@ -456,7 +445,7 @@ let write_ast (plainsource : bool) (channel : out_channel)
       output_value channel structure
     end
 
-let compile_and_load (options : options) (structure : Parsetree.structure)
+let compile_and_load (options : Options.t) (structure : Parsetree.structure)
   : unit =
   let (source_filename, channel) = Filename.open_temp_file "metapp" ".ml" in
   Stdcompat.Fun.protect (fun () ->
@@ -473,7 +462,20 @@ let compile_and_load (options : options) (structure : Parsetree.structure)
 
 let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
     (s : 'a) : 'a =
-  let (mapper, k) = extract_metapoints () in
+  let (meta_mapper, k) = extract_metapoints () in
+  let accu_options = ref Options.empty in
+  let module Metaopt (Item : Metapp_preutils.ItemS) = struct
+    let map (mapper : Ast_mapper.mapper) (item : Item.t) : Item.t =
+      Ast_helper.with_default_loc (Item.to_loc item) @@ fun () ->
+      match Option.bind (Item.destruct_extension item) Options.handle with
+      | None -> Item.mapper.get meta_mapper mapper item
+      | Some option ->
+          accu_options |> Metapp_preutils.mutate option;
+          Item.of_list []
+  end in
+  let mapper = { meta_mapper with
+    structure_item = (let module M = Metaopt (Metapp_preutils.Stri) in M.map);
+    signature_item = let module M = Metaopt (Metapp_preutils.Sigi) in M.map } in
   let s = get_mapper mapper mapper s in
   match k () with { instructions; context } ->
   Metapp_api.top_context := Some context;
@@ -487,55 +489,22 @@ let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
             Ast_helper.Exp.case
               (Metapp_preutils.Pat.some (Metapp_preutils.Pat.var context_var))
               (Metapp_preutils.Exp.var context_var)])]] in
-  let make_instruction
-    ((accu_parsetree : Parsetree.structure), (accu_options : options))
-    (instruction : instruction Location.loc)
-      : Parsetree.structure * options =
-    match instruction.txt with
-    | Exp expr ->
+  let make_instruction (accu : Parsetree.structure) (instruction : instruction)
+      : Parsetree.structure =
+    match instruction with
+    | Expression expr ->
         let item =
           Ast_helper.Str.value Nonrecursive
             [Ast_helper.Vb.mk (Metapp_preutils.Pat.of_unit ()) expr] in
-        (item :: accu_parsetree, accu_options)
-    | Definition definition ->
-        (List.rev_append definition accu_parsetree, accu_options)
-    | Packages packages ->
-        (accu_parsetree,
-          { accu_options with packages =
-              List.rev_append packages accu_options.packages })
-    | Load object_files ->
-        let add_object_file accu_options object_file =
-          Dynlink.loadfile object_file;
-          let dir_name = Filename.dirname object_file in
-          if dir_name = Filename.current_dir_name ||
-              List.mem dir_name accu_options.directories then
-            accu_options
-          else
-            { accu_options with
-              directories = dir_name :: accu_options.directories } in
-        (accu_parsetree,
-          List.fold_left add_object_file accu_options object_files)
-    | Directories directories ->
-        (accu_parsetree,
-          { accu_options with
-            directories =
-              List.rev_append directories accu_options.directories })
-    | Flags flags ->
-        (accu_parsetree,
-          { accu_options with
-            flags = List.rev_append flags accu_options.flags })
-    | Plainsource ->
-        (accu_parsetree,
-          { accu_options with plainsource = true }) in
-  let (accu_parsetree, accu_options) =
-    List.fold_left make_instruction (initial_parsetree, empty_options)
-      instructions in
-  let parsetree = List.rev accu_parsetree in
-  let options = rev_options accu_options in
+        item :: accu
+    | Definition definition -> List.rev_append definition.txt accu in
+  let accu = List.fold_left make_instruction initial_parsetree instructions in
+  let parsetree = List.rev accu in
+  let options = Options.rev !accu_options in
   if options.packages <> [] then
     begin
       Findlib.init ();
-      Fl_dynload.load_packages options.packages;
+      Fl_dynload.load_packages ~debug:options.debug_findlib options.packages;
     end;
   compile_and_load options parsetree;
   let mapper = replace_metapoints context.metapoints in

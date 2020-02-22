@@ -65,7 +65,7 @@ let get_mod_name mod_ name =
       invalid_arg (Printf.sprintf
         "%s.mk: anonymous modules are not supported with OCaml <4.10.0" mod_)
   | Some name -> name]
-else Metapp_preutils.include_structure []]
+else Metapp_preutils.Stri.of_list []]
 
 module Md = struct
   let mk (mod_name : string option Location.loc)
@@ -231,12 +231,12 @@ let filter : Ast_mapper.mapper =
     match item.pstr_desc with
     | Pstr_value (rec_flag, bindings) ->
         begin match List.filter check_value_binding bindings with
-        | [] -> include_structure []
+        | [] -> Stri.of_list []
         | bindings -> { item with pstr_desc = Pstr_value (rec_flag, bindings)}
         end
     | Pstr_primitive description
       when not (check_value_description description) ->
-        include_structure []
+        Stri.of_list []
     | Pstr_type (rec_flag, declarations) ->
         { item with pstr_desc =
           Pstr_type (rec_flag, List.filter check_type_declaration declarations)}
@@ -246,7 +246,7 @@ let filter : Ast_mapper.mapper =
     let item = Ast_mapper.default_mapper.signature_item mapper item in
     match item.psig_desc with
     | Psig_value description  when not (check_value_description description) ->
-        include_signature []
+        Sigi.of_list []
     | Psig_type (rec_flag, declarations) ->
         { item with psig_desc =
           Psig_type (rec_flag, List.filter check_type_declaration declarations)}
@@ -255,7 +255,7 @@ let filter : Ast_mapper.mapper =
 
 (** {1 Signature type destruction} *)
 
-[%%meta Metapp_preutils.include_structure (
+[%%meta Metapp_preutils.Stri.of_list (
   if Sys.ocaml_version >= "4.08.0" then [%str
 type sig_type = {
     id : Ident.t;

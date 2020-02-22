@@ -17,10 +17,6 @@ val list_of_tuple : Parsetree.expression -> Parsetree.expression list
 
 val structure_of_expression : Parsetree.expression -> Parsetree.structure
 
-val include_signature : Parsetree.signature -> Parsetree.signature_item
-
-val include_structure : Parsetree.structure -> Parsetree.structure_item
-
 val lid_of_str : Ast_helper.str -> Ast_helper.lid
 
 val sequence : Parsetree.expression list -> Parsetree.expression
@@ -99,6 +95,14 @@ module type PayloadS = sig
   val to_payload : t -> Parsetree.payload
 end
 
+module type ItemS = sig
+  include ExtensibleS
+
+  include PayloadS with type t := t
+
+  val of_list : t list -> t
+end
+
 module Cty : ExtensibleS with type t = Parsetree.class_type
 
 module Ctf : ExtensibleS with type t = Parsetree.class_type_field
@@ -111,11 +115,7 @@ module Mty : ExtensibleS with type t = Parsetree.module_type
 
 module Mod : ExtensibleS with type t = Parsetree.module_expr
 
-module Stri : sig
-  include ExtensibleS with type t = Parsetree.structure_item
-
-  include PayloadS with type t := Parsetree.structure_item
-end
+module Stri : ItemS with type t := Parsetree.structure_item
 
 module Str : sig
   include VisitableS with type t = Parsetree.structure
@@ -123,11 +123,7 @@ module Str : sig
   include PayloadS with type t := Parsetree.structure
 end
 
-module Sigi : sig
-  include ExtensibleS with type t = Parsetree.signature_item
-
-  include PayloadS with type t := Parsetree.signature_item
-end
+module Sigi : ItemS with type t := Parsetree.signature_item
 
 module Sig : sig
   include VisitableS with type t = Parsetree.signature

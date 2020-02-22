@@ -72,16 +72,6 @@ let list_of_tuple (e : Parsetree.expression) : Parsetree.expression list =
 let structure_of_expression (e : Parsetree.expression) : Parsetree.structure =
   [Ast_helper.Str.eval e]
 
-let include_signature (signature : Parsetree.signature)
-    : Parsetree.signature_item =
-  Ast_helper.Sig.include_ (Ast_helper.Incl.mk
-    (Ast_helper.Mty.signature signature))
-
-let include_structure (structure : Parsetree.structure)
-    : Parsetree.structure_item =
-  Ast_helper.Str.include_ (Ast_helper.Incl.mk
-    (Ast_helper.Mod.structure structure))
-
 let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
   Location.mkloc (Longident.Lident str.txt) str.loc
 
@@ -157,6 +147,14 @@ module type PayloadS = sig
   val of_payload : Parsetree.payload -> t
 
   val to_payload : t -> Parsetree.payload
+end
+
+module type ItemS = sig
+  include ExtensibleS
+
+  include PayloadS with type t := t
+
+  val of_list : t list -> t
 end
 
 module Cty : ExtensibleS with type t = Parsetree.class_type = struct
@@ -355,6 +353,10 @@ module Stri = struct
 
   let to_payload (item : Parsetree.structure_item) : Parsetree.payload =
     PStr [item]
+
+  let of_list (structure : Parsetree.structure) : Parsetree.structure_item =
+    Ast_helper.Str.include_ (Ast_helper.Incl.mk
+      (Ast_helper.Mod.structure structure))
 end
 
 let list_to_loc (item_to_loc : 'a -> Location.t) (l : 'a list) : Location.t =
@@ -424,6 +426,10 @@ module Sigi = struct
 
   let to_payload (item : Parsetree.signature_item) : Parsetree.payload =
     PSig [item]
+
+  let of_list (signature : Parsetree.signature) : Parsetree.signature_item =
+    Ast_helper.Sig.include_ (Ast_helper.Incl.mk
+      (Ast_helper.Mty.signature signature))
 end
 
 module Sig = struct
@@ -448,8 +454,8 @@ module Sig = struct
     | _ ->
         Location.raise_errorf ~loc:!Ast_helper.default_loc "Signature expected"
 
-  let to_payload (sig_ : Parsetree.signature) : Parsetree.payload =
-    PSig sig_
+  let to_payload (signature : Parsetree.signature) : Parsetree.payload =
+    PSig signature
 end
 
 type value = {

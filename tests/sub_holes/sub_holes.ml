@@ -20,7 +20,7 @@ let counter = ref 0
 
 [%%meta
   let s = [%stri let () = incr counter ] in
-  Metapp_preutils.include_structure [s; s]]
+  Metapp_preutils.Stri.of_list [s; s]]
 
 let () =
   Test_framework.assert_eq Stdcompat.Int.equal Format.pp_print_int

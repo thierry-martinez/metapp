@@ -90,7 +90,7 @@ Global definitions for meta-code can be included with `[%%metadef
 By default, the meta-code is compiled with the `compiler-libs` package.
 Other packages can be loaded with `[%%metapackage ...]`.
 More generally, flags can be passed to the compiler to compile meta-code
-with `[%%metaflags ...]` (there is another convenient notation for
+with `[%%metaflag ...]` (there is another convenient notation for
 adding interface directories: `[%%metadir ...]`).
 `[%%metaload ...]` loads a particular compilation unit.
 
