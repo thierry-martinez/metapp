@@ -253,7 +253,7 @@ let replace_metapoints (contents : Metapp_api.OptionArrayMetapoints.t)
       Metapoint.MetapointAccessor (Metapp_api.OptionArrayMetapoints)
 
     let map (payload : Parsetree.payload) : Metapoint.t =
-      Stdcompat.Option.get
+      Option.get
         (Accessor.get contents).(Metapp_preutils.int_of_payload payload)
   end in
   metapoint_mapper (module Mapper)
@@ -268,7 +268,7 @@ let rec extract_subquotations
     match
       match e.pexp_desc with
       | Pexp_extension ({ txt; _ }, payload) ->
-          Stdcompat.Option.map (fun antiquotable -> (antiquotable, payload))
+          Option.map (fun antiquotable -> (antiquotable, payload))
           ((match txt with
           | "e" | "expr" -> Some (module Metapp_api.Exp)
           | "p" | "pat" -> Some (module Metapp_api.Pat)
@@ -391,7 +391,7 @@ let compile (options : Options.t) (source_filename : string)
     (object_filename : string) : unit =
   let flags =
     options.flags @
-    Stdcompat.List.concat_map (fun directory -> ["-I"; directory])
+    List.concat_map (fun directory -> ["-I"; directory])
       options.directories @
     ["-I"; "+compiler-libs"; "-w"; "-40"; compiler.archive_option;
       source_filename; "-o"; object_filename] in
@@ -420,7 +420,7 @@ let compile (options : Options.t) (source_filename : string)
     match list with
     | [] -> assert false
     | (command, args) :: tl ->
-        let command_line = Stdcompat.Filename.quote_command command args in
+        let command_line = Filename.quote_command command args in
         match Sys.command command_line with
         | 0 -> ()
         | 127 when tl <> [] -> try_commands tl
@@ -448,15 +448,15 @@ let write_ast (plainsource : bool) (channel : out_channel)
 let compile_and_load (options : Options.t) (structure : Parsetree.structure)
   : unit =
   let (source_filename, channel) = Filename.open_temp_file "metapp" ".ml" in
-  Stdcompat.Fun.protect (fun () ->
-    Stdcompat.Fun.protect (fun () ->
+  Fun.protect (fun () ->
+    Fun.protect (fun () ->
       write_ast options.plainsource channel structure)
       ~finally:(fun () -> close_out channel);
     let object_filename =
-      Stdcompat.Filename.remove_extension source_filename ^
+      Filename.remove_extension source_filename ^
       compiler.archive_suffix in
     compile options source_filename object_filename;
-    Stdcompat.Fun.protect (fun () -> Dynlink.loadfile object_filename)
+    Fun.protect (fun () -> Dynlink.loadfile object_filename)
       ~finally:(fun () -> Sys.remove object_filename))
     ~finally:(fun () -> Sys.remove source_filename)
 

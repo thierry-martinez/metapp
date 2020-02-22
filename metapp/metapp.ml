@@ -44,7 +44,7 @@ module Attr = struct
 
   let find (attr_name : string) (attributes : Parsetree.attributes)
       : Parsetree.attribute option =
-    Stdcompat.List.find_opt (fun attribute ->
+    List.find_opt (fun attribute ->
       String.equal (name attribute).txt attr_name) attributes
 
   let chop (attr_name : string) (attributes : Parsetree.attributes)
@@ -358,7 +358,7 @@ module Rf = struct
           label]
         else [%e
           label.txt]] in
-      Rtag (label, Stdcompat.Option.value ~default:[] attrs, has_constant,
+      Rtag (label, Option.value ~default:[] attrs, has_constant,
         args)]]
 
   let inherit_ ?loc:_loc ?attrs:_attrs (core_type : Parsetree.core_type)
@@ -429,9 +429,9 @@ module Of = struct
     [%meta if Sys.ocaml_version >= "4.08.0" then [%e
       Ast_helper.Of.tag ?loc:_loc ?attrs label ty]
     else if Sys.ocaml_version >= "4.06.0" then [%e
-      Otag (label, Stdcompat.Option.value ~default:[] attrs, ty)]
+      Otag (label, Option.value ~default:[] attrs, ty)]
     else [%e
-      (label.txt, Stdcompat.Option.value ~default:[] attrs, ty)]]
+      (label.txt, Option.value ~default:[] attrs, ty)]]
 
   let inherit_ ?loc:_loc ?attrs:_attrs (_ty : Parsetree.core_type) : t =
     [%meta if Sys.ocaml_version >= "4.08.0" then [%e

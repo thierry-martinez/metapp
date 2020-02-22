@@ -6,7 +6,7 @@ let int_of_expression (e : Parsetree.expression) : int =
   match
     match e.pexp_desc with
     | Pexp_constant (Pconst_integer (value, _)) ->
-        Stdcompat.int_of_string_opt value
+        int_of_string_opt value
     | _ ->
         None
   with
