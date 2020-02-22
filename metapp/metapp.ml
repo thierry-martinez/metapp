@@ -420,6 +420,9 @@ module Of = struct
       match of_ with
       | Otag (label, _, ty) -> Otag (label, ty)
       | Oinherit ty -> Oinherit ty]
+    else if Sys.ocaml_version >= "4.05.0" then [%e
+      let (label, _, ty) = of_ in
+      Otag (label, ty)]
     else [%e
       let (label, _, ty) = of_ in
       Otag (mkloc label, ty)]]
@@ -430,6 +433,8 @@ module Of = struct
       Ast_helper.Of.tag ?loc:_loc ?attrs label ty]
     else if Sys.ocaml_version >= "4.06.0" then [%e
       Otag (label, Option.value ~default:[] attrs, ty)]
+    else if Sys.ocaml_version >= "4.05.0" then[%e
+      (label, Option.value ~default:[] attrs, ty)]
     else [%e
       (label.txt, Option.value ~default:[] attrs, ty)]]
 
