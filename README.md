@@ -95,6 +95,7 @@ More generally, flags can be passed to the compiler to compile meta-code
 with `[%%metaflag ...]` (there is another convenient notation for
 adding interface directories: `[%%metadir ...]`).
 `[%%metaload ...]` loads a particular compilation unit.
-
 For instance, `[%%metapackage metapp]` links the meta-code with the
 `metapp` package in order to use the [`Metapp`] module.
+All these notations can be applied to multiple arguments at once by using
+comma as separator.
