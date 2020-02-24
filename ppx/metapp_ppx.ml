@@ -460,7 +460,8 @@ let compile_and_load (options : Options.t) (structure : Parsetree.structure)
       ~finally:(fun () -> Sys.remove object_filename))
     ~finally:(fun () -> Sys.remove source_filename)
 
-let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
+let transform (root_mapper : Ast_mapper.mapper)
+    (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
     (s : 'a) : 'a =
   let (meta_mapper, k) = extract_metapoints () in
   let accu_options = ref Options.empty in
@@ -477,8 +478,9 @@ let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
     structure_item = (let module M = Metaopt (Metapp_preutils.Stri) in M.map);
     signature_item = let module M = Metaopt (Metapp_preutils.Sigi) in M.map } in
   let s = get_mapper mapper mapper s in
-  match k () with { instructions; context } ->
-  Metapp_api.top_context := Some context;
+  match k () with
+  | { instructions = []; _ } -> s
+  | { instructions; context } ->
   let initial_parsetree =
     [Ast_helper.Str.value Nonrecursive
       [Ast_helper.Vb.mk (Metapp_preutils.Pat.var context_var)
@@ -499,7 +501,8 @@ let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
         item :: accu
     | Definition definition -> List.rev_append definition.txt accu in
   let accu = List.fold_left make_instruction initial_parsetree instructions in
-  let parsetree = List.rev accu in
+  let parsetree = root_mapper.structure root_mapper (List.rev accu) in
+  Metapp_api.top_context := Some context;
   let options = Options.rev !accu_options in
   if options.packages <> [] then
     begin
@@ -512,8 +515,10 @@ let transform (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
 
 let mapper : Ast_mapper.mapper =
   { Ast_mapper.default_mapper with
-    structure = (fun _mapper -> transform (fun mapper -> mapper.structure));
-    signature = (fun _mapper -> transform (fun mapper -> mapper.signature)); }
+    structure =
+      (fun mapper -> transform mapper (fun mapper -> mapper.structure));
+    signature =
+      (fun mapper -> transform mapper (fun mapper -> mapper.signature)); }
 
 let rewriter _config _cookies : Ast_mapper.mapper =
   mapper

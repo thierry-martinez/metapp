@@ -52,6 +52,8 @@ available: the full list is given below.
 |`[%stri ...]`                |`Parsetree.structure_item`|
 
 Quoted expressions can in turn contain further `[%meta ...]` code.
+Moreover, `[%meta ...]` code can itself contain other levels of
+`[%meta ...]` code, for multi-stage programming.
 
 In addition to this syntax extension, the [`Metapp`] module
 provided by the [`metapp`] package provides convenient functions
