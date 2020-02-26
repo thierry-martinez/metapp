@@ -524,6 +524,6 @@ let rewriter _config _cookies : Ast_mapper.mapper =
   mapper
 
 let () =
-  Migrate_parsetree.Driver.register ~name:"conditional"
+  Migrate_parsetree.Driver.register ~name:"metapp" ~position:(-20)
     (module Migrate_parsetree.OCaml_current)
     rewriter
