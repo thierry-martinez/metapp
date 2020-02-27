@@ -99,3 +99,16 @@ For instance, `[%%metapackage metapp]` links the meta-code with the
 `metapp` package in order to use the [`Metapp`] module.
 All these notations can be applied to multiple arguments at once by using
 comma as separator.
+
+Note that dynamic package loading is broken in PPX with dune
+([#3214]).  When packages are loaded with `[%%metapackage ...]`, a
+workaround [see discussion] is used to load the packages
+correctly, but only with OCaml >=4.08. If you need to use
+`[%%metapackage ...]` with a prior version of OCaml, you still can
+statically link the packages you need by listing them in the
+`(preprocess (pps ...))` list. You will still have to import them with
+`[%%metapackage ...]` to let the compiler see their interface when
+compiling the meta-code.
+
+[#3214]: https://github.com/ocaml/dune/issues/3214
+[see discussion]: https://discuss.ocaml.org
