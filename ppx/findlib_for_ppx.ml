@@ -1,7 +1,7 @@
 (* See https://github.com/ocaml/dune/issues/3214 *)
 
 let init_predicates () =
-  if Sys.ocaml_version < "4.08.0" && Findlib.recorded_predicates () = [] then
+  if Sys.ocaml_version >= "4.08.0" && Findlib.recorded_predicates () = [] then
     let preds = ["ppx_driver"; "mt"; "mt_posix"] in
     let preds = (if Dynlink.is_native then "native" else "byte") :: preds in
     Findlib.record_package_predicates preds
