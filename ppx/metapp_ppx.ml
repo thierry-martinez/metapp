@@ -506,8 +506,10 @@ let transform (root_mapper : Ast_mapper.mapper)
   let options = Options.rev !accu_options in
   if options.packages <> [] then
     begin
+      Findlib_for_ppx.init_predicates ();
       Findlib.init ();
-      Fl_dynload.load_packages ~debug:options.debug_findlib options.packages;
+      Findlib_for_ppx.load_packages ~debug:options.debug_findlib
+        options.packages;
     end;
   compile_and_load options parsetree;
   let mapper = replace_metapoints context.metapoints in
