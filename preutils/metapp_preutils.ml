@@ -1,4 +1,3 @@
-module Header = struct
 (** {1 Coercions} *)
 
 let int_of_expression (e : Parsetree.expression) : int =
@@ -625,9 +624,6 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     | [] -> nil ?attrs ?prefix ()
     | hd :: tl -> cons ?attrs ?prefix hd (list ?prefix tl)
 end
-end
-
-include Header
 
 module Exp = ExtendValue (struct
   type t = Parsetree.expression
@@ -735,7 +731,6 @@ module Typ = struct
     PTyp typ
 end
 
-module Footer = struct
 module Pat = ExtendValue (struct
   type t = Parsetree.pattern
 
@@ -939,6 +934,3 @@ let update f ref =
 
 let mutate f ref =
   ref := f !ref
-end
-
-include Footer

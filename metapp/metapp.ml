@@ -1,5 +1,7 @@
-include Metapp_preutils.Header
-include Metapp_preutils.Footer
+include (Metapp_preutils :
+  module type of struct include Metapp_preutils end with
+  module Exp := Metapp_preutils.Exp and
+  module Typ := Metapp_preutils.Typ)
 
 (** {1 General purpose functions} *)
 
