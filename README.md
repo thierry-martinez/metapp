@@ -102,7 +102,7 @@ comma as separator.
 
 Note that dynamic package loading is broken in PPX with dune
 ([#3214]).  When packages are loaded with `[%%metapackage ...]`, a
-workaround [see discussion] is used to load the packages
+workaround ([see discussion]) is used to load the packages
 correctly, but only with OCaml >=4.08. If you need to use
 `[%%metapackage ...]` with a prior version of OCaml, you still can
 statically link the packages you need by listing them in the
