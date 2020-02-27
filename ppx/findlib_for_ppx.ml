@@ -9,7 +9,8 @@ let init_predicates () =
 let load_pkg_if_needed ~debug pkg =
   try
     Fl_dynload.load_packages ~debug [pkg]
-  with Dynlink.Error (Dynlink.Module_already_loaded _) ->
+  with Dynlink.Error _ ->
+    (* Module_already_loaded is not defined in OCaml <4.08.0 *)
     Findlib.record_package Findlib.Record_load pkg
 
 (* The following function is adapted from findlib source code.
@@ -40,7 +41,10 @@ other dealings in the software.
 *)
 
 let load_packages ?(debug=false) pkgs =
-  let preds = Findlib.recorded_predicates() in
-  let eff_pkglist =
-    Findlib.package_deep_ancestors preds pkgs in
-  List.iter (load_pkg_if_needed ~debug) eff_pkglist
+  if Sys.ocaml_version < "4.08.0" then
+    Fl_dynload.load_packages ~debug pkgs
+  else
+    let preds = Findlib.recorded_predicates() in
+    let eff_pkglist =
+      Findlib.package_deep_ancestors preds pkgs in
+    List.iter (load_pkg_if_needed ~debug) eff_pkglist
