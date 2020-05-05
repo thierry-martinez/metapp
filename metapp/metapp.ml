@@ -84,15 +84,7 @@ let rec longident_of_expression_opt (expression : Parsetree.expression)
   match expression.pexp_desc with
   | Pexp_ident { txt; _ } -> Some txt
   | Pexp_construct ({ txt; _ }, None) -> Some txt
-  | Pexp_open (open_decl, expr) ->
-      begin match longident_of_module_expr_opt open_decl.popen_expr with
-      | None -> None
-      | Some a ->
-          match longident_of_expression_opt expr with
-          | None -> None
-          | Some b ->
-              Some (concat_ident a b)
-      end
+
   | _ -> None
 
 let longident_of_payload (payload : Parsetree.payload) : Longident.t =
