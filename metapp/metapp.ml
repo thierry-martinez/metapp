@@ -3,6 +3,52 @@ include (Metapp_preutils :
   module Exp := Metapp_preutils.Exp and
   module Typ := Metapp_preutils.Typ)
 
+(** {1 String constant destructor} *)
+
+type string_constant = {
+    s : string;
+    loc : Location.t;
+    delim : string option;
+  }
+
+(** More general reimplementation without magic *)
+
+let destruct_string_constant (constant : Parsetree.constant)
+    : string_constant option =
+  [%meta if Sys.ocaml_version < "4.11.0" then [%e
+    match constant with
+    | Pconst_string (s, delim) ->
+        Some { s; loc = !Ast_helper.default_loc; delim }
+    | _ -> None]
+  else [%e
+    match constant with
+    | Pconst_string (s, loc, delim) -> Some { s; loc; delim }
+    | _ -> None]]
+
+let string_of_expression (expression : Parsetree.expression) : string_constant =
+  Ast_helper.with_default_loc expression.pexp_loc @@ fun () ->
+  match
+    match expression.pexp_desc with
+    | Pexp_constant constant -> destruct_string_constant constant
+    | _ -> None
+  with
+  | Some value -> value
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "String value expected"
+
+let string_of_arbitrary_expression (expression : Parsetree.expression)
+    : string =
+  Ast_helper.with_default_loc expression.pexp_loc @@ fun () ->
+  match
+    match expression.pexp_desc with
+    | Pexp_constant constant -> destruct_string_constant constant
+    | _ -> None
+  with
+  | Some value -> value.s
+  | _ ->
+      Format.asprintf "%a" Pprintast.expression expression
+
 (** {1 General purpose functions} *)
 
 let rec extract_first (p : 'a -> 'b option) (l : 'a list)
@@ -16,6 +62,50 @@ let rec extract_first (p : 'a -> 'b option) (l : 'a list)
           match extract_first p tl with
           | Some (b, tl) -> Some (b, hd :: tl)
           | None -> None
+
+(** {1 Constructing identifiers } *)
+
+let rec concat_ident (a : Longident.t) (b : Longident.t) : Longident.t =
+  match b with
+  | Lident b -> Ldot (a, b)
+  | Ldot (m, name) -> Ldot (concat_ident a m, name)
+  | Lapply (m, x) -> Lapply (concat_ident a m, x)
+
+(** {1 Payload construction and extraction} *)
+
+let longident_of_module_expr_opt (module_expr : Parsetree.module_expr)
+    : Longident.t option =
+  match module_expr.pmod_desc with
+  | Pmod_ident { txt; _ } -> Some txt
+  | _ -> None
+
+let rec longident_of_expression_opt (expression : Parsetree.expression)
+    : Longident.t option =
+  match expression.pexp_desc with
+  | Pexp_ident { txt; _ } -> Some txt
+  | Pexp_construct ({ txt; _ }, None) -> Some txt
+  | Pexp_open (open_decl, expr) ->
+      begin match longident_of_module_expr_opt open_decl.popen_expr with
+      | None -> None
+      | Some a ->
+          match longident_of_expression_opt expr with
+          | None -> None
+          | Some b ->
+              Some (concat_ident a b)
+      end
+  | _ -> None
+
+let longident_of_payload (payload : Parsetree.payload) : Longident.t =
+  match
+    match payload with
+    | PStr [{ pstr_desc = Pstr_eval (expression, [])}] ->
+        longident_of_expression_opt expression
+    | _ -> None
+  with
+  | Some ident -> ident
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "Identifier expected"
 
 (** {1 Attribute management} *)
 
@@ -60,6 +150,27 @@ end
 
 (** {1 Module binding and declaration} *)
 
+[%%meta Metapp_preutils.Stri.of_list (
+  if Sys.ocaml_version >= "4.10.0" then [%str
+    type module_name = string option
+
+    external module_name_of_string_option : string option -> module_name =
+      "%identity"
+
+    external string_option_of_module_name : module_name -> string option =
+      "%identity"]
+  else [%str
+    type module_name = string
+
+    let module_name_of_string_option (s : string option) : module_name =
+      match s with
+      | Some name -> name
+      | None ->
+          invalid_arg "Anonymous modules are not supported with OCaml <4.10.0"
+
+    let string_option_of_module_name (name : module_name) : string option =
+      Some name])]
+
 [%%meta if Sys.ocaml_version < "4.10.0" then [%stri
 let get_mod_name mod_ name =
   match name with
@@ -72,19 +183,13 @@ else Metapp_preutils.Stri.of_list []]
 module Md = struct
   let mk (mod_name : string option Location.loc)
       (s : Parsetree.module_type) : Parsetree.module_declaration =
-    [%meta if Sys.ocaml_version < "4.10.0" then
-      [%e Ast_helper.Md.mk (map_loc (get_mod_name "Md") mod_name) s]
-    else
-      [%e Ast_helper.Md.mk mod_name s]]
+    Ast_helper.Md.mk (map_loc module_name_of_string_option mod_name) s
 end
 
 module Mb = struct
   let mk (mod_name : string option Location.loc)
       (s : Parsetree.module_expr) : Parsetree.module_binding =
-    [%meta if Sys.ocaml_version < "4.10.0" then
-      [%e Ast_helper.Mb.mk (map_loc (get_mod_name "Mb") mod_name) s]
-    else
-      [%e Ast_helper.Mb.mk mod_name s]]
+    Ast_helper.Mb.mk (map_loc module_name_of_string_option mod_name) s
 end
 
 (** {1 Expressions} *)

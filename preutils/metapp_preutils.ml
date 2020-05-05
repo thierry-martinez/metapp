@@ -14,19 +14,33 @@ let int_of_expression (e : Parsetree.expression) : int =
       Location.raise_errorf ~loc:!Ast_helper.default_loc
         "Integer value expected"
 
-let string_of_expression (e : Parsetree.expression) : string =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
-  match e.pexp_desc with
-  | Pexp_constant (Pconst_string (value, _)) ->
-      value
+let destruct_string_constant (constant : Parsetree.constant) : string option =
+  match constant with
+  | Pconst_string _ as str ->
+      (* Hack for OCaml 4.11.0 *)
+      Some (Obj.obj (Obj.field (Obj.repr str) 0))
+  | _ -> None
+
+let string_of_expression (expression : Parsetree.expression) : string =
+  Ast_helper.with_default_loc expression.pexp_loc @@ fun () ->
+  match
+    match expression.pexp_desc with
+    | Pexp_constant constant -> destruct_string_constant constant
+    | _ -> None
+  with
+  | Some value -> value
   | _ ->
       Location.raise_errorf ~loc:!Ast_helper.default_loc
         "String value expected"
 
 let string_of_arbitrary_expression (expression : Parsetree.expression)
     : string =
-  match expression with
-  | { pexp_desc = Pexp_constant (Pconst_string (s, _)); _ } -> s
+  match
+    match expression.pexp_desc with
+    | Pexp_constant constant -> destruct_string_constant constant
+    | _ -> None
+  with
+  | Some value -> value
   | _ ->
       Format.asprintf "%a" Pprintast.expression expression
 
@@ -934,3 +948,5 @@ let update f ref =
 
 let mutate f ref =
   ref := f !ref
+
+module Accu = Accu

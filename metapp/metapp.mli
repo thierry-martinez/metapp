@@ -1,8 +1,18 @@
+(** {1 String constant destructor} *)
+
+type string_constant = {
+    s : string;
+    loc : Location.t;
+    delim : string option;
+  }
+
+val destruct_string_constant : Parsetree.constant -> string_constant option
+
 (** {1 Coercions} *)
 
 val int_of_expression : Parsetree.expression -> int
 
-val string_of_expression : Parsetree.expression -> string
+val string_of_expression : Parsetree.expression -> string_constant
 
 val string_of_arbitrary_expression : Parsetree.expression -> string
 
@@ -31,6 +41,8 @@ val string_of_payload : Parsetree.payload -> string
 
 val bool_of_payload : Parsetree.payload -> bool
 
+val longident_of_payload : Parsetree.payload -> Longident.t
+
 (** {1 Location management} *)
 
 val mkloc : 'a -> 'a Location.loc
@@ -44,6 +56,8 @@ val with_loc : ('a -> 'b) -> 'a Location.loc -> 'b
 val make_ident : ?prefix : Longident.t -> string -> Longident.t
 
 val ident : ?attrs : Parsetree.attributes -> Longident.t -> Parsetree.expression
+
+val concat_ident : Longident.t -> Longident.t -> Longident.t
 
 (** {1 Constructing function application} *)
 
@@ -227,6 +241,23 @@ end
 
 (** {1 Module binding and declaration} *)
 
+[%%meta Metapp_preutils.Sigi.of_list (
+  if Sys.ocaml_version >= "4.10.0" then [%sig:
+    type module_name = string option
+
+    external module_name_of_string_option : string option -> module_name =
+      "%identity"
+
+    external string_option_of_module_name : module_name -> string option =
+      "%identity"]
+  else [%sig:
+    type module_name = string
+
+    val module_name_of_string_option : string option -> module_name
+
+    val string_option_of_module_name : module_name -> string option
+  ])]
+
 module Md : sig
   val mk :
       string option Location.loc -> Parsetree.module_type ->
@@ -352,3 +383,25 @@ val update : ('a -> 'b * 'a) ->  'a ref -> 'b
 val mutate : ('a -> 'a) -> 'a ref -> unit
 
 val extract_first : ('a -> 'b option) -> 'a list -> ('b * 'a list) option
+
+(** Indexed accumulator to build an array. *)
+module Accu : sig
+  type 'a t
+  (** An accumulator of type ['a t] can accumulate values of type ['a] to
+      build an ['a array]. *)
+
+  val empty : 'a t
+  (** The empty accumulator. *)
+
+  val add : 'a -> 'a t -> int * 'a t
+  (** [add v a] returns [(i, a')] where [a'] is the accumulator [a] followed by
+      the value [v]. [i] is the index of [v] in [a'] (and is equal to the length
+      of [a]). *)
+
+  val length : 'a t -> int
+  (** [length a] returns the length of the accumulator [a] (the number of
+      elements). *)
+
+  val to_array : 'a t -> 'a array
+  (** [to_array a] returns the array containing all the elements of [a]. *)
+end

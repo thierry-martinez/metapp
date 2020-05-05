@@ -110,9 +110,9 @@ module rec AccuTypes : sig
       context : Metapp_api.context;
     }
 
-  type 'a quotations = ((unit -> 'a) * escape) Accu.t ref
+  type 'a quotations = ((unit -> 'a) * escape) Metapp_preutils.Accu.t ref
 
-  type 'a metapoints = Location.t Accu.t ref
+  type 'a metapoints = Location.t Metapp_preutils.Accu.t ref
 end = struct
   include AccuTypes
 end
@@ -125,7 +125,7 @@ with type 'a t = 'a AccuTypes.quotations
   type 'a t = 'a AccuTypes.quotations
 
   let make () =
-    ref Accu.empty
+    ref Metapp_preutils.Accu.empty
 end
 and MutableMetapoints : Metapp_api.MetapointsWithMakeS
 with type 'a x = 'a AccuMetapoint.t =
@@ -135,7 +135,7 @@ with type 'a t = 'a AccuTypes.metapoints = struct
   type 'a t = 'a AccuTypes.metapoints
 
   let make () =
-    ref Accu.empty
+    ref Metapp_preutils.Accu.empty
 end
 
 module type MetapointsMapperS =
@@ -185,7 +185,7 @@ let unmut_metapoints (context : MutableMetapoints.t)
 
         type 'a y = 'a option array
 
-        let map accu = Array.make (Accu.length !accu) None
+        let map accu = Array.make (Metapp_preutils.Accu.length !accu) None
       end) in
   Map.map context
 
@@ -197,7 +197,7 @@ let unmut_loc (context : MutableMetapoints.t)
 
         type _ y = Location.t array
 
-        let map accu = Accu.to_array !accu
+        let map accu = Metapp_preutils.Accu.to_array !accu
       end) in
   Map.map context
 
@@ -212,7 +212,7 @@ let unmut_subquotations (context : MutableQuotations.t)
         let map accu = Array.map
             (fun (fill, { AccuTypes.context; _ }) ->
               ({ context; fill } : 'a Metapp_api.ArrayQuotation.quotation))
-            (Accu.to_array !accu)
+            (Metapp_preutils.Accu.to_array !accu)
       end) in
   Map.map context
 
@@ -294,7 +294,7 @@ let rec extract_subquotations
           let mapper = replace_metapoints escape.context.metapoints in
           M.mapper.get mapper mapper quotation in
         let index =
-          Metapp_preutils.update (Accu.add (fill, escape))
+          Metapp_preutils.update (Metapp_preutils.Accu.add (fill, escape))
             (Quotation.get quotations) in
         let field_name = Name.get Metapp_api.quotation_name in
         Ast_helper.Exp.let_ Nonrecursive
@@ -322,7 +322,8 @@ and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
       let e = Metapp_preutils.Exp.of_payload payload in
       let extracted_expr = mapper_subquotations.expr mapper_subquotations e in
       let index =
-        Metapp_preutils.update (Accu.add !Ast_helper.default_loc)
+        Metapp_preutils.update
+          (Metapp_preutils.Accu.add !Ast_helper.default_loc)
           (Accessor.get metapoints) in
       let field = Name.get Metapp_api.metapoint_name in
       let metapoint_field = field_get (context_get metapoints_field) field in
