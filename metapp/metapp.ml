@@ -49,6 +49,20 @@ let string_of_arbitrary_expression (expression : Parsetree.expression)
   | _ ->
       Format.asprintf "%a" Pprintast.expression expression
 
+(** {1 Open} *)
+
+module Opn = struct
+  [%%meta if Sys.ocaml_version >= "4.08.0" then
+    [%stri type 'a t = 'a Parsetree.open_infos]
+  else [%stri
+    type 'a t = {
+      popen_expr : 'a;
+      popen_override : Asttypes.override_flag;
+      popen_loc : Location.t;
+      popen_attributes : Parsetree.attributes;
+    }]]
+end
+
 (** {1 General purpose functions} *)
 
 let rec extract_first (p : 'a -> 'b option) (l : 'a list)
@@ -70,42 +84,6 @@ let rec concat_ident (a : Longident.t) (b : Longident.t) : Longident.t =
   | Lident b -> Ldot (a, b)
   | Ldot (m, name) -> Ldot (concat_ident a m, name)
   | Lapply (m, x) -> Lapply (concat_ident a m, x)
-
-(** {1 Payload construction and extraction} *)
-
-let longident_of_module_expr_opt (module_expr : Parsetree.module_expr)
-    : Longident.t option =
-  match module_expr.pmod_desc with
-  | Pmod_ident { txt; _ } -> Some txt
-  | _ -> None
-
-let rec longident_of_expression_opt (expression : Parsetree.expression)
-    : Longident.t option =
-  match expression.pexp_desc with
-  | Pexp_ident { txt; _ } -> Some txt
-  | Pexp_construct ({ txt; _ }, None) -> Some txt
-  | Pexp_open (open_decl, expr) ->
-      begin match longident_of_module_expr_opt open_decl.popen_expr with
-      | None -> None
-      | Some a ->
-          match longident_of_expression_opt expr with
-          | None -> None
-          | Some b ->
-              Some (concat_ident a b)
-      end
-  | _ -> None
-
-let longident_of_payload (payload : Parsetree.payload) : Longident.t =
-  match
-    match payload with
-    | PStr [{ pstr_desc = Pstr_eval (expression, [])}] ->
-        longident_of_expression_opt expression
-    | _ -> None
-  with
-  | Some ident -> ident
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Identifier expected"
 
 (** {1 Attribute management} *)
 
@@ -210,7 +188,78 @@ module Exp = struct
       Ast_helper.Exp.newtype ?loc ?attrs name ty]
     else [%e
       Ast_helper.Exp.newtype ?loc ?attrs name.txt ty]]
+
+  let destruct_open (expression : Parsetree.expression)
+      : (Parsetree.module_expr Opn.t * Parsetree.expression) option =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      match expression.pexp_desc with
+      | Pexp_open (open_decl, expr) ->
+          Some (open_decl, expr)
+      | _ ->
+          None]
+    else [%e
+      match expression.pexp_desc with
+      | Pexp_open (popen_override, module_name, expr) ->
+          let open_decl : Parsetree.module_expr Opn.t = {
+            popen_expr = Ast_helper.Mod.ident module_name;
+            popen_override;
+            popen_loc = expression.pexp_loc;
+            popen_attributes = [];
+          } in
+          Some (open_decl, expr)
+      | _ ->
+          None]]
+
+  let construct_open (open_decl : Parsetree.module_expr Opn.t)
+      (expr : Parsetree.expression) : Parsetree.expression =
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Ast_helper.Exp.open_ open_decl expr]
+    else [%e
+      let module_name =
+        match open_decl.popen_expr.pmod_desc with
+        | Pmod_ident module_name -> module_name
+        | _ ->
+            invalid_arg "Metapp.Exp.construct_open: OCaml <4.08.0 only support module identifiers in open" in
+      Ast_helper.Exp.open_ open_decl.popen_override module_name expr]]
 end
+
+(** {1 Payload construction and extraction} *)
+
+let longident_of_module_expr_opt (module_expr : Parsetree.module_expr)
+    : Longident.t option =
+  match module_expr.pmod_desc with
+  | Pmod_ident { txt; _ } -> Some txt
+  | _ -> None
+
+let rec longident_of_expression_opt (expression : Parsetree.expression)
+    : Longident.t option =
+  match expression.pexp_desc with
+  | Pexp_ident { txt; _ } -> Some txt
+  | Pexp_construct ({ txt; _ }, None) -> Some txt
+  | _ ->
+      match Exp.destruct_open expression with
+      | Some (open_decl, expr) ->
+          begin match longident_of_module_expr_opt open_decl.popen_expr with
+          | None -> None
+          | Some a ->
+              match longident_of_expression_opt expr with
+              | None -> None
+              | Some b ->
+                  Some (concat_ident a b)
+          end
+      | _ -> None
+
+let longident_of_payload (payload : Parsetree.payload) : Longident.t =
+  match
+    match payload with
+    | PStr [{ pstr_desc = Pstr_eval (expression, [])}] ->
+        longident_of_expression_opt expression
+    | _ -> None
+  with
+  | Some ident -> ident
+  | _ ->
+      Location.raise_errorf ~loc:!Ast_helper.default_loc
+        "Identifier expected"
 
 (** {1 Mapper for [[@if bool]] notation} *)
 

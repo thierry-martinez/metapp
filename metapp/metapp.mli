@@ -308,6 +308,20 @@ module Typ : sig
       string -> string]]
 end
 
+(** {1 Open} *)
+
+module Opn : sig
+  [%%meta if Sys.ocaml_version >= "4.08.0" then
+    [%sigi: type 'a t = 'a Parsetree.open_infos]
+  else [%sigi:
+    type 'a t = {
+      popen_expr : 'a;
+      popen_override : Asttypes.override_flag;
+      popen_loc : Location.t;
+      popen_attributes : Parsetree.attributes;
+    }]]
+end
+
 (** {1 Expressions} *)
 
 module Exp : sig
@@ -320,6 +334,14 @@ module Exp : sig
   val newtype :
       ?loc:Location.t -> ?attrs:Parsetree.attributes -> Ast_helper.str ->
         Parsetree.expression -> Parsetree.expression
+
+  val destruct_open :
+      Parsetree.expression ->
+        (Parsetree.module_expr Opn.t * Parsetree.expression) option
+
+  val construct_open :
+      Parsetree.module_expr Opn.t -> Parsetree.expression ->
+        Parsetree.expression
 end
 
 (** {1 Row fields} *)
