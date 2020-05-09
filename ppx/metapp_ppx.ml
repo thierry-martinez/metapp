@@ -168,14 +168,6 @@ let metapoint_mapper (mapper : (module MetapointsMapperS)) : Ast_mapper.mapper =
     structure_item = (let module M = Mapper' (Metapp_api.Stri) in M.map);
   }
 
-(*
-module UnaryInt = struct
-  type 'a t = int
-end
-
-module HolesCount = Metapp_api.Holes (UnaryInt)
-*)
-
 let unmut_metapoints (context : MutableMetapoints.t)
     : Metapp_api.OptionArrayMetapoints.t =
   let module Map = Metapp_api.MetapointMap (MutableMetapoints)
@@ -215,19 +207,6 @@ let unmut_subquotations (context : MutableQuotations.t)
             (Metapp_preutils.Accu.to_array !accu)
       end) in
   Map.map context
-
-(*
-let unmut_holes_count (holes_count : MutableHolesCount.t) : HolesCount.t =
-  let module Map = Metapp_api.HolesMap (MutableHolesCount.UnaryCounter)
-      (UnaryInt) (struct
-    type 'a x = Counter.t
-
-    type 'a y = int
-
-    let map = (!)
-  end) in
-  Map.map holes_count
-*)
 
 let context_var = "__context"
 
