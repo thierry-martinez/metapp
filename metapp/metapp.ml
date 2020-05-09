@@ -727,7 +727,7 @@ module Types = struct
 
     let destruct_functor_parameter p =
       match p with
-      | Unit -> Ident.create "", None
+      | Unit -> Ident.create_persistent "", None
       | Named (ident_opt, t) ->
           match ident_opt with
           | None -> invalid_arg _anonymous_module_unsupported
