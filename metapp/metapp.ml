@@ -87,47 +87,6 @@ let rec concat_ident (a : Longident.t) (b : Longident.t) : Longident.t =
   | Ldot (m, name) -> Ldot (concat_ident a m, name)
   | Lapply (m, x) -> Lapply (concat_ident a m, x)
 
-(** {1 Attribute management} *)
-
-module Attr = struct
-  let mk (name : Ast_helper.str) (payload : Parsetree.payload) =
-    [%meta if Sys.ocaml_version < "4.08.0" then
-      [%e (name, payload)]
-    else
-      [%e Ast_helper.Attr.mk name payload]]
-
-  let name (attribute : Parsetree.attribute) : Ast_helper.str =
-    [%meta if Sys.ocaml_version < "4.08.0" then
-      [%e fst attribute]
-    else
-      [%e attribute.attr_name]]
-
-  let payload (attribute : Parsetree.attribute) : Parsetree.payload =
-    [%meta if Sys.ocaml_version < "4.08.0" then
-      [%e snd attribute]
-    else
-      [%e attribute.attr_payload]]
-
-  let to_loc (attribute : Parsetree.attribute) : Location.t =
-    [%meta if Sys.ocaml_version < "4.08.0" then
-      [%e (fst attribute).loc]
-    else
-      [%e attribute.attr_loc]]
-
-  let find (attr_name : string) (attributes : Parsetree.attributes)
-      : Parsetree.attribute option =
-    List.find_opt (fun attribute ->
-      String.equal (name attribute).txt attr_name) attributes
-
-  let chop (attr_name : string) (attributes : Parsetree.attributes)
-      : (Parsetree.attribute * Parsetree.attributes) option =
-    extract_first (fun attribute ->
-      if String.equal (name attribute).txt attr_name then
-        Some attribute
-      else
-        None) attributes
-end
-
 (** {1 Module binding and declaration} *)
 
 let _anonymous_module_unsupported =
@@ -219,6 +178,82 @@ module Exp = struct
             invalid_arg "Metapp.Exp.open_: OCaml <4.08.0 only support module identifiers in open" in
       Ast_helper.Exp.open_ ?loc ?attrs open_decl.popen_override module_name
         expr]]
+
+  let tuple_of_payload (payload : Parsetree.payload)
+      : Parsetree.expression list =
+    match of_payload payload with
+    | { pexp_desc = Pexp_tuple tuple } -> tuple
+    | e -> [e]
+end
+
+(** {1 Attribute management} *)
+
+module Attr = struct
+  let mk (name : Ast_helper.str) (payload : Parsetree.payload) =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e (name, payload)]
+    else
+      [%e Ast_helper.Attr.mk name payload]]
+
+  let name (attribute : Parsetree.attribute) : Ast_helper.str =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e fst attribute]
+    else
+      [%e attribute.attr_name]]
+
+  let payload (attribute : Parsetree.attribute) : Parsetree.payload =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e snd attribute]
+    else
+      [%e attribute.attr_payload]]
+
+  let to_loc (attribute : Parsetree.attribute) : Location.t =
+    [%meta if Sys.ocaml_version < "4.08.0" then
+      [%e (fst attribute).loc]
+    else
+      [%e attribute.attr_loc]]
+
+  let find (attr_name : string) (attributes : Parsetree.attributes)
+      : Parsetree.attribute option =
+    List.find_opt (fun attribute ->
+      String.equal (name attribute).txt attr_name) attributes
+
+  let chop (attr_name : string) (attributes : Parsetree.attributes)
+      : (Parsetree.attribute * Parsetree.attributes) option =
+    extract_first (fun attribute ->
+      if String.equal (name attribute).txt attr_name then
+        Some attribute
+      else
+        None) attributes
+
+  let get_derivers (attributes : Parsetree.attributes)
+      : Parsetree.expression list option =
+    match find "deriving" attributes with
+    | None -> None
+    | Some derivers -> Some (Exp.tuple_of_payload (payload derivers))
+
+  let has_deriver (deriver_name : string) (attributes : Parsetree.attributes)
+      : (Asttypes.arg_label * Parsetree.expression) list option =
+    Option.bind (get_derivers attributes)
+      (List.find_map (fun (e : Parsetree.expression) ->
+        match e.pexp_desc with
+        | Pexp_ident { txt = Lident name; _ }
+          when String.equal name deriver_name ->
+            Some []
+        | Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident name; _ }}, args)
+          when String.equal name deriver_name ->
+            Some args
+        | _ -> None))
+end
+
+(** {1 Type declarations} *)
+
+module Type = struct
+  let has_deriver (deriver_name : string)
+      (declarations : Parsetree.type_declaration list)
+      : (Asttypes.arg_label * Parsetree.expression) list option =
+    declarations |> List.find_map (fun (decl : Parsetree.type_declaration) ->
+      Attr.has_deriver deriver_name decl.ptype_attributes)
 end
 
 (** {1 Payload construction and extraction} *)

@@ -313,6 +313,12 @@ module Attr : sig
   val chop :
       string -> Parsetree.attributes ->
         (Parsetree.attribute * Parsetree.attributes) option
+
+  val get_derivers : Parsetree.attributes -> Parsetree.expression list option
+
+  val has_deriver :
+      string -> Parsetree.attributes ->
+        (Asttypes.arg_label * Parsetree.expression) list option
 end
 
 (** {1 Module binding and declaration} *)
@@ -368,6 +374,14 @@ module Typ : sig
       string -> string]]
 end
 
+(** {1 Type declarations} *)
+
+module Type : sig
+  val has_deriver :
+      string -> Parsetree.type_declaration list ->
+        (Asttypes.arg_label * Parsetree.expression) list option
+end
+
 (** {1 Open} *)
 
 module Opn : sig
@@ -403,6 +417,8 @@ module Exp : sig
   val destruct_open :
       Parsetree.expression ->
         (Parsetree.module_expr Opn.t * Parsetree.expression) option
+
+  val tuple_of_payload : Parsetree.payload -> Parsetree.expression list
 end
 
 (** {1 Row fields} *)
