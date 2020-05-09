@@ -125,10 +125,6 @@ module Cl : ExtensibleS with type t = Parsetree.class_expr
 
 module Cf : ExtensibleS with type t = Parsetree.class_field
 
-module Mty : ExtensibleS with type t = Parsetree.module_type
-
-module Mod : ExtensibleS with type t = Parsetree.module_expr
-
 module Stri : ItemS with type t := Parsetree.structure_item
 
 module Str : sig
@@ -143,6 +139,86 @@ module Sig : sig
   include VisitableS with type t = Parsetree.signature
 
   include PayloadS with type t := Parsetree.signature
+end
+
+(** {1 Module expressions} *)
+
+[%%meta if Sys.ocaml_version >= "4.10.0" then [%sigi:
+  type functor_parameter = Parsetree.functor_parameter =
+    | Unit
+    | Named of string option Location.loc * Parsetree.module_type]
+else [%sigi:
+  type functor_parameter =
+    | Unit
+    | Named of string option Location.loc * Parsetree.module_type]]
+
+module type FunctorS = sig
+  type t
+
+  val functor_ :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes -> functor_parameter ->
+        t -> t
+
+  val destruct_functor : t -> (functor_parameter * t) option
+end
+
+module type ModS = sig
+  include ExtensibleS
+
+  include FunctorS with type t := t
+end
+
+module Mod : ModS with type t = Parsetree.module_expr
+
+(** {1 Module types} *)
+
+module Mty : ModS with type t = Parsetree.module_type
+
+module Types : sig
+  (** {1 Signature type destruction} *)
+
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%sigi:
+    type visibility = Types.visibility =
+      | Exported
+      | Hidden]
+  else [%sigi:
+    type visibility =
+      | Exported
+      | Hidden]]
+
+  module Sigi : sig
+    type sig_type = {
+        id : Ident.t;
+        decl : Types.type_declaration;
+        rec_status : Types.rec_status;
+        visibility : visibility;
+      }
+
+    val sig_type : sig_type -> Types.signature_item
+
+    val destruct_sig_type : Types.signature_item -> sig_type option
+  end
+
+
+  (** {1 Module types in Types} *)
+
+  [%%meta if Sys.ocaml_version >= "4.10.0" then [%sigi:
+    type functor_parameter = Types.functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]
+  else [%sigi:
+    type functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]]
+
+  module Mty : sig
+    val functor_ : functor_parameter -> Types.module_type -> Types.module_type
+
+    val destruct_functor :
+        Types.module_type -> (functor_parameter * Types.module_type) option
+
+    val destruct_alias : Types.module_type -> Path.t option
+  end
 end
 
 (** {1 Generic signature for expressions and patterns} *)
@@ -260,33 +336,17 @@ end
 
 module Md : sig
   val mk :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes ->
       string option Location.loc -> Parsetree.module_type ->
-        Parsetree.module_declaration
+      Parsetree.module_declaration
 end
 
 module Mb : sig
   val mk :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes ->
       string option Location.loc -> Parsetree.module_expr ->
-        Parsetree.module_binding
+      Parsetree.module_binding
 end
-
-(** {1 Signature type destruction} *)
-
-[%%meta if Sys.ocaml_version >= "4.08.0" then
-  [%sigi: type sig_type = {
-    id : Ident.t;
-    decl : Types.type_declaration;
-    rec_status : Types.rec_status;
-    visibility : Types.visibility;
-  }]
-else
-  [%sigi: type sig_type = {
-    id : Ident.t;
-    decl : Types.type_declaration;
-    rec_status : Types.rec_status;
-  }]]
-
-val destruct_sig_type : Types.signature_item -> sig_type option
 
 (** {1 Mapper for [[@if bool]] notation} *)
 
@@ -335,13 +395,14 @@ module Exp : sig
       ?loc:Location.t -> ?attrs:Parsetree.attributes -> Ast_helper.str ->
         Parsetree.expression -> Parsetree.expression
 
+  val open_ :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes ->
+        Parsetree.module_expr Opn.t -> Parsetree.expression ->
+        Parsetree.expression
+
   val destruct_open :
       Parsetree.expression ->
         (Parsetree.module_expr Opn.t * Parsetree.expression) option
-
-  val construct_open :
-      Parsetree.module_expr Opn.t -> Parsetree.expression ->
-        Parsetree.expression
 end
 
 (** {1 Row fields} *)
@@ -372,6 +433,7 @@ module Rf : sig
 end
 
 (** {1 Object fields} *)
+
 module Of : sig
   [%%meta if Sys.ocaml_version >= "4.06.0" then [%sigi:
     type t = Parsetree.object_field]
@@ -396,6 +458,24 @@ module Of : sig
 
   val inherit_ : ?loc:Location.t -> ?attrs:Parsetree.attributes ->
     Parsetree.core_type -> t
+end
+
+(** {1 With constraint} *)
+
+module With : sig
+  val typesubst :
+      ?t:Ast_helper.lid -> Parsetree.type_declaration ->
+        Parsetree.with_constraint
+
+  val destruct_typesubst :
+      Parsetree.with_constraint ->
+        (Ast_helper.lid * Parsetree.type_declaration) option
+
+  val modsubst :
+      Ast_helper.lid -> Ast_helper.lid -> Parsetree.with_constraint
+
+  val destruct_modsubst :
+      Parsetree.with_constraint -> (Ast_helper.lid * Ast_helper.lid) option
 end
 
 (** {1 General purpose functions} *)

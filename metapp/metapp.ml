@@ -1,7 +1,9 @@
 include (Metapp_preutils :
   module type of struct include Metapp_preutils end with
   module Exp := Metapp_preutils.Exp and
-  module Typ := Metapp_preutils.Typ)
+  module Typ := Metapp_preutils.Typ and
+  module Mod := Metapp_preutils.Mod and
+  module Mty := Metapp_preutils.Mty)
 
 (** {1 String constant destructor} *)
 
@@ -128,6 +130,9 @@ end
 
 (** {1 Module binding and declaration} *)
 
+let _anonymous_module_unsupported =
+  "Anonymous modules are not supported with OCaml <4.10.0"
+
 [%%meta Metapp_preutils.Stri.of_list (
   if Sys.ocaml_version >= "4.10.0" then [%str
     type module_name = string option
@@ -143,31 +148,23 @@ end
     let module_name_of_string_option (s : string option) : module_name =
       match s with
       | Some name -> name
-      | None ->
-          invalid_arg "Anonymous modules are not supported with OCaml <4.10.0"
+      | None -> invalid_arg _anonymous_module_unsupported
 
     let string_option_of_module_name (name : module_name) : string option =
       Some name])]
 
-[%%meta if Sys.ocaml_version < "4.10.0" then [%stri
-let get_mod_name mod_ name =
-  match name with
-  | None ->
-      invalid_arg (Printf.sprintf
-        "%s.mk: anonymous modules are not supported with OCaml <4.10.0" mod_)
-  | Some name -> name]
-else Metapp_preutils.Stri.of_list []]
-
 module Md = struct
-  let mk (mod_name : string option Location.loc)
+  let mk ?loc ?attrs (mod_name : string option Location.loc)
       (s : Parsetree.module_type) : Parsetree.module_declaration =
-    Ast_helper.Md.mk (map_loc module_name_of_string_option mod_name) s
+    Ast_helper.Md.mk ?loc ?attrs (map_loc module_name_of_string_option mod_name)
+      s
 end
 
 module Mb = struct
-  let mk (mod_name : string option Location.loc)
+  let mk ?loc ?attrs (mod_name : string option Location.loc)
       (s : Parsetree.module_expr) : Parsetree.module_binding =
-    Ast_helper.Mb.mk (map_loc module_name_of_string_option mod_name) s
+    Ast_helper.Mb.mk ?loc ?attrs (map_loc module_name_of_string_option mod_name)
+      s
 end
 
 (** {1 Expressions} *)
@@ -210,17 +207,18 @@ module Exp = struct
       | _ ->
           None]]
 
-  let construct_open (open_decl : Parsetree.module_expr Opn.t)
+  let open_ ?loc ?attrs (open_decl : Parsetree.module_expr Opn.t)
       (expr : Parsetree.expression) : Parsetree.expression =
     [%meta if Sys.ocaml_version >= "4.08.0" then [%e
-      Ast_helper.Exp.open_ open_decl expr]
+      Ast_helper.Exp.open_ ?loc ?attrs open_decl expr]
     else [%e
       let module_name =
         match open_decl.popen_expr.pmod_desc with
         | Pmod_ident module_name -> module_name
         | _ ->
-            invalid_arg "Metapp.Exp.construct_open: OCaml <4.08.0 only support module identifiers in open" in
-      Ast_helper.Exp.open_ open_decl.popen_override module_name expr]]
+            invalid_arg "Metapp.Exp.open_: OCaml <4.08.0 only support module identifiers in open" in
+      Ast_helper.Exp.open_ ?loc ?attrs open_decl.popen_override module_name
+        expr]]
 end
 
 (** {1 Payload construction and extraction} *)
@@ -409,35 +407,6 @@ let filter : Ast_mapper.mapper =
     | _ -> item in
   { Ast_mapper.default_mapper with pat; expr; structure_item; signature_item }
 
-(** {1 Signature type destruction} *)
-
-[%%meta Metapp_preutils.Stri.of_list (
-  if Sys.ocaml_version >= "4.08.0" then [%str
-type sig_type = {
-    id : Ident.t;
-    decl : Types.type_declaration;
-    rec_status : Types.rec_status;
-    visibility : Types.visibility;
-  }
-
-let destruct_sig_type (item : Types.signature_item) : sig_type option =
-  match item with
-  | Sig_type (id, decl, rec_status, visibility) ->
-      Some { id; decl; rec_status; visibility }
-  | _ -> None]
-else [%str
-type sig_type = {
-    id : Ident.t;
-    decl : Types.type_declaration;
-    rec_status : Types.rec_status;
-  }
-
-let destruct_sig_type (item : Types.signature_item) : sig_type option =
-  match item with
-  | Sig_type (id, decl, rec_status ) ->
-      Some { id; decl; rec_status }
-  | _ -> None])]
-
 (** {1 Type construction} *)
 
 module Typ = struct
@@ -600,6 +569,250 @@ module Of = struct
     else if Sys.ocaml_version >= "4.06.0" then [%e
       Oinherit _ty]
     else [%e
-      failwith
+      invalid_arg
     "Metapp.Of.inherit_: inherit object field unavailable with OCaml <4.06.0"]]
+end
+
+(** {1 Module expressions} *)
+
+[%%meta Metapp_preutils.Stri.of_list (
+if Sys.ocaml_version >= "4.10.0" then [%str
+  type functor_parameter = Parsetree.functor_parameter =
+    | Unit
+    | Named of string option Location.loc * Parsetree.module_type]
+else [%str
+  type functor_parameter =
+    | Unit
+    | Named of string option Location.loc * Parsetree.module_type
+
+  let construct_functor_parameter x t =
+    match t with
+    | None -> Unit
+    | Some t -> Named (map_loc Option.some x, t)
+
+  let destruct_functor_parameter p =
+    match p with
+    | Unit -> mkloc "", None
+    | Named (name_loc, t) ->
+        match name_loc.txt with
+        | None -> invalid_arg _anonymous_module_unsupported
+        | Some txt -> { name_loc with txt }, Some t
+])]
+
+module type FunctorS = sig
+  type t
+
+  val functor_ :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes -> functor_parameter ->
+        t -> t
+
+  val destruct_functor : t -> (functor_parameter * t) option
+end
+
+module type ModS = sig
+  include ExtensibleS
+
+  include FunctorS with type t := t
+end
+
+module Mod = struct
+  include Metapp_preutils.Mod
+
+  let functor_ ?loc ?attrs (parameter : functor_parameter)
+      (body : Parsetree.module_expr) : Parsetree.module_expr =
+    [%meta if Sys.ocaml_version >= "4.10.0" then
+      [%e Ast_helper.Mod.functor_ ?loc ?attrs parameter body]
+    else [%e
+      let x, t = destruct_functor_parameter parameter in
+      Ast_helper.Mod.functor_ ?loc ?attrs x t body]]
+
+  let destruct_functor (modtype : Parsetree.module_expr)
+      : (functor_parameter * Parsetree.module_expr) option =
+    match modtype.pmod_desc with
+    | [%meta if Sys.ocaml_version >= "4.10.0" then
+        [%p? Pmod_functor (f, s)]
+      else
+        [%p? Pmod_functor (x, t, s)]] ->
+        [%meta if Sys.ocaml_version >= "4.10.0" then
+          [%e Some (f, s)]
+        else
+          [%e Some (construct_functor_parameter x t, s)]]
+    | _ -> None
+end
+
+(** {1 Module types} *)
+
+module Mty = struct
+  include Metapp_preutils.Mty
+
+  let functor_ ?loc ?attrs (parameter : functor_parameter)
+      (body : Parsetree.module_type) : Parsetree.module_type =
+    [%meta if Sys.ocaml_version >= "4.10.0" then
+      [%e Ast_helper.Mty.functor_ ?loc ?attrs parameter body]
+    else [%e
+      let x, t = destruct_functor_parameter parameter in
+      Ast_helper.Mty.functor_ ?loc ?attrs x t body]]
+
+  let destruct_functor (modtype : Parsetree.module_type)
+      : (functor_parameter * Parsetree.module_type) option =
+    match modtype.pmty_desc with
+    | [%meta if Sys.ocaml_version >= "4.10.0" then
+        [%p? Pmty_functor (f, s)]
+      else
+        [%p? Pmty_functor (x, t, s)]] ->
+        [%meta if Sys.ocaml_version >= "4.10.0" then
+          [%e Some (f, s)]
+        else
+          [%e Some (construct_functor_parameter x t, s)]]
+    | _ -> None
+end
+
+module Types = struct
+  (** {1 Signature type destruction} *)
+
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%stri
+    type visibility = Types.visibility =
+      | Exported
+      | Hidden]
+  else [%stri
+    type visibility =
+      | Exported
+      | Hidden]]
+
+  module Sigi = struct
+    type sig_type = {
+        id : Ident.t;
+        decl : Types.type_declaration;
+        rec_status : Types.rec_status;
+        visibility : visibility;
+      }
+
+    let sig_type (sig_type : sig_type) : Types.signature_item =
+      [%meta if Sys.ocaml_version >= "4.08.0" then [%expr
+        Sig_type (
+          sig_type.id, sig_type.decl, sig_type.rec_status, sig_type.visibility)]
+      else [%expr
+        Sig_type (
+          sig_type.id, sig_type.decl, sig_type.rec_status)]]
+
+    let destruct_sig_type (item : Types.signature_item) : sig_type option =
+      [%meta if Sys.ocaml_version >= "4.08.0" then [%expr
+        match item with
+        | Sig_type (id, decl, rec_status, visibility) ->
+            Some { id; decl; rec_status; visibility }
+        | _ -> None]
+      else [%expr
+        match item with
+        | Sig_type (id, decl, rec_status) ->
+            Some { id; decl; rec_status; visibility = Exported }
+        | _ -> None]]
+  end
+
+  (** {1 Module types in Types} *)
+
+  [%%meta Metapp_preutils.Stri.of_list (
+  if Sys.ocaml_version >= "4.10.0" then [%str
+    type functor_parameter = Types.functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]
+  else [%str
+    type functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type
+
+    let construct_functor_parameter x t =
+      match t with
+      | None -> Unit
+      | Some t -> Named (Option.some x, t)
+
+    let destruct_functor_parameter p =
+      match p with
+      | Unit -> Ident.create "", None
+      | Named (ident_opt, t) ->
+          match ident_opt with
+          | None -> invalid_arg _anonymous_module_unsupported
+          | Some ident -> ident, Some t
+  ])]
+
+  module Mty = struct
+    let functor_ (parameter : functor_parameter)
+        (body : Types.module_type) : Types.module_type =
+      [%meta if Sys.ocaml_version >= "4.10.0" then
+        [%e Mty_functor (parameter, body)]
+      else [%e
+        let x, t = destruct_functor_parameter parameter in
+        Mty_functor (x, t, body)]]
+
+    let destruct_functor (modtype : Types.module_type)
+        : (functor_parameter * Types.module_type) option =
+      match modtype with
+      | [%meta if Sys.ocaml_version >= "4.10.0" then
+          [%p? Mty_functor (f, s)]
+        else
+          [%p? Mty_functor (x, t, s)]] ->
+          [%meta if Sys.ocaml_version >= "4.10.0" then
+            [%e Some (f, s)]
+          else
+            [%e Some (construct_functor_parameter x t, s)]]
+      | _ -> None
+
+    let destruct_alias (modtype : Types.module_type) : Path.t option =
+      match modtype with
+      | [%meta
+         if Sys.ocaml_version >= "4.08.0" || Sys.ocaml_version < "4.04.0" then
+           [%p? Mty_alias p]
+         else
+           [%p? Mty_alias (_, p)]] -> Some p
+      | _ -> None
+  end
+end
+
+(** {1 With constraint} *)
+
+module With = struct
+  let typesubst ?t:_t (decl : Parsetree.type_declaration)
+      : Parsetree.with_constraint =
+    [%meta if Sys.ocaml_version >= "4.06.0" then
+      [%e
+        let t =
+          match _t with
+          | None -> lid_of_str decl.ptype_name
+          | Some t -> t in
+        Parsetree.Pwith_typesubst (t, decl)]
+    else
+      [%e Parsetree.Pwith_typesubst decl]]
+
+  let destruct_typesubst (cstr : Parsetree.with_constraint)
+      : (Ast_helper.lid * Parsetree.type_declaration) option =
+    [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+      match cstr with
+      | Pwith_typesubst (t, decl) -> Some (t, decl)
+      | _ -> None]
+    else [%e
+      match cstr with
+      | Pwith_typesubst decl -> Some (lid_of_str decl.ptype_name, decl)
+      | _ -> None]]
+
+  let modsubst (x : Ast_helper.lid) (y : Ast_helper.lid)
+      : Parsetree.with_constraint =
+    [%meta if Sys.ocaml_version >= "4.06.0" then
+      [%e Parsetree.Pwith_modsubst (x, y)]
+    else
+      [%e
+        let x =
+          match x.txt with
+          | Lident txt -> { x with txt }
+          | _ -> invalid_arg "Module substitution should not be qualified with OCaml <4.06" in
+        Parsetree.Pwith_modsubst (x, y)]]
+
+  let destruct_modsubst (cstr : Parsetree.with_constraint)
+      : (Ast_helper.lid * Ast_helper.lid) option =
+    [%meta if Sys.ocaml_version >= "4.06.0" then [%e
+      match cstr with
+      | Pwith_modsubst (x, y) -> Some (x, y)
+      | _ -> None]
+    else [%e
+      match cstr with
+      | Pwith_modsubst (x, y) -> Some (lid_of_str x, y)
+      | _ -> None]]
 end
