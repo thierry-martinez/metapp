@@ -428,7 +428,7 @@ module Exp : sig
         Parsetree.expression
 
   val ident_of_str :
-      ?attrs:Parsetree.attributes -> Ast_helper.lid ->
+      ?attrs:Parsetree.attributes -> Ast_helper.str ->
         Parsetree.expression
 
   val send :

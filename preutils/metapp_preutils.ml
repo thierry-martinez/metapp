@@ -641,7 +641,7 @@ module Exp = struct
     Ast_helper.Exp.ident ?loc ?attrs (mkloc ident)
 
   let ident_of_str ?attrs (str : Ast_helper.str) : Parsetree.expression =
-    ident ?attrs ~loc:str.loc (lid_of_str str)
+    ident ?attrs ~loc:str.loc (Lident str.txt)
 
   include ExtendValue (struct
     type t = Parsetree.expression
