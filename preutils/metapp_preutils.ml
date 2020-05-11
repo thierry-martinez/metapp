@@ -106,9 +106,6 @@ let make_ident ?(prefix : Longident.t option) (s : string) : Longident.t =
   | None -> Lident s
   | Some prefix -> Ldot (prefix, s)
 
-let ident ?attrs (ident : Longident.t) : Parsetree.expression =
-  Ast_helper.Exp.ident ?attrs (mkloc ident)
-
 (** {1 Constructing function application} *)
 
 let nolabel arg =
@@ -639,76 +636,84 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     | hd :: tl -> cons ?attrs ?prefix hd (list ?prefix tl)
 end
 
-module Exp = ExtendValue (struct
-  type t = Parsetree.expression
+module Exp = struct
+  let ident ?loc ?attrs (ident : Longident.t) : Parsetree.expression =
+    Ast_helper.Exp.ident ?loc ?attrs (mkloc ident)
 
-  let to_loc (e : Parsetree.expression) : Location.t =
-    e.pexp_loc
+  let ident_of_str ?attrs (str : Ast_helper.str) : Parsetree.expression =
+    ident ?attrs ~loc:str.loc (lid_of_str str)
 
-  let var ?attrs x =
-    ident ?attrs (Lident x)
+  include ExtendValue (struct
+    type t = Parsetree.expression
 
-  let of_constant ?attrs cst =
-    Ast_helper.Exp.constant ?attrs cst
+    let to_loc (e : Parsetree.expression) : Location.t =
+      e.pexp_loc
 
-  let of_bytes ?attrs b =
-    apply ?attrs (ident (Ldot (Lident "Bytes", "of_string")))
-      [of_constant (Ast_helper.Const.string (Bytes.to_string b))]
+    let var ?attrs x =
+      ident ?attrs (Lident x)
 
-  let force_tuple ?attrs (args : t list) : t =
-    Ast_helper.Exp.tuple ?attrs args
+    let of_constant ?attrs cst =
+      Ast_helper.Exp.constant ?attrs cst
 
-  let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
-    Ast_helper.Exp.construct ?attrs lid args
+    let of_bytes ?attrs b =
+      apply ?attrs (ident (Ldot (Lident "Bytes", "of_string")))
+        [of_constant (Ast_helper.Const.string (Bytes.to_string b))]
 
-  let array ?attrs (items : t list) : t =
-    Ast_helper.Exp.array ?attrs items
+    let force_tuple ?attrs (args : t list) : t =
+      Ast_helper.Exp.tuple ?attrs args
 
-  let record ?attrs (fields : (Longident.t * t) list) : t =
-    Ast_helper.Exp.record ?attrs
-      (List.map (fun (field, value) -> (mkloc field, value)) fields)
-      None
+    let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
+      Ast_helper.Exp.construct ?attrs lid args
 
-  let variant ?attrs (ctor : string) (arg : t option) : t =
-    Ast_helper.Exp.variant ?attrs ctor arg
+    let array ?attrs (items : t list) : t =
+      Ast_helper.Exp.array ?attrs items
 
-  let lazy_ ?attrs (arg : t) : t =
-    Ast_helper.Exp.lazy_ ?attrs arg
+    let record ?attrs (fields : (Longident.t * t) list) : t =
+      Ast_helper.Exp.record ?attrs
+        (List.map (fun (field, value) -> (mkloc field, value)) fields)
+        None
 
-  let choice (e : unit -> Parsetree.expression) (_p : unit ->Parsetree.pattern)
-      : t =
-    e ()
+    let variant ?attrs (ctor : string) (arg : t option) : t =
+      Ast_helper.Exp.variant ?attrs ctor arg
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { expr; _ } -> expr);
-    set = (fun expr iterator -> { iterator with expr })
-  }
+    let lazy_ ?attrs (arg : t) : t =
+      Ast_helper.Exp.lazy_ ?attrs arg
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { expr; _ } -> expr);
-    set = (fun expr mapper -> { mapper with expr })
-  }
+    let choice (e : unit -> Parsetree.expression)
+        (_p : unit ->Parsetree.pattern) : t =
+      e ()
 
-  let extension ?attrs (e : Parsetree.extension) =
-    Ast_helper.Exp.extension ?attrs e
+    let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
+      get = (fun { expr; _ } -> expr);
+      set = (fun expr iterator -> { iterator with expr })
+    }
 
-  let destruct_extension (e : Parsetree.expression)
-      : Parsetree.extension option =
-    match e.pexp_desc with
-    | Pexp_extension extension -> Some extension
-    | _ -> None
+    let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
+      get = (fun { expr; _ } -> expr);
+      set = (fun expr mapper -> { mapper with expr })
+    }
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.expression =
-    match payload with
-    | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
-        expr
-    | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc
-          "Expression expected"
+    let extension ?attrs (e : Parsetree.extension) =
+      Ast_helper.Exp.extension ?attrs e
 
-  let to_payload (e : Parsetree.expression) : Parsetree.payload =
-    PStr (structure_of_expression e)
-end)
+    let destruct_extension (e : Parsetree.expression)
+        : Parsetree.extension option =
+      match e.pexp_desc with
+      | Pexp_extension extension -> Some extension
+      | _ -> None
+
+    let of_payload (payload : Parsetree.payload) : Parsetree.expression =
+      match payload with
+      | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
+          expr
+      | _ ->
+          Location.raise_errorf ~loc:!Ast_helper.default_loc
+            "Expression expected"
+
+    let to_payload (e : Parsetree.expression) : Parsetree.payload =
+      PStr (structure_of_expression e)
+  end)
+end
 
 module Typ = struct
   type t = Parsetree.core_type

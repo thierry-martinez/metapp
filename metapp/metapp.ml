@@ -79,13 +79,23 @@ let rec extract_first (p : 'a -> 'b option) (l : 'a list)
           | Some (b, tl) -> Some (b, hd :: tl)
           | None -> None
 
-(** {1 Constructing identifiers } *)
+type 'a comparer = 'a -> 'a -> int
 
-let rec concat_ident (a : Longident.t) (b : Longident.t) : Longident.t =
-  match b with
-  | Lident b -> Ldot (a, b)
-  | Ldot (m, name) -> Ldot (concat_ident a m, name)
-  | Lapply (m, x) -> Lapply (concat_ident a m, x)
+let compare_pair compare_fst compare_snd (a, b) (c, d) : int =
+  let o = compare_fst a c in
+  if o = 0 then
+    compare_snd b d
+  else
+    o
+
+let rec compare_list compare_item a b =
+  match a, b with
+  | [], [] -> 0
+  | a_hd :: a_tl, b_hd :: b_tl ->
+      compare_pair compare_item (compare_list compare_item) (a_hd, a_tl)
+        (b_hd, b_tl)
+  | [], _ :: _ -> -1
+  | _ :: _, [] -> 1
 
 (** {1 Module binding and declaration} *)
 
@@ -256,43 +266,77 @@ module Type = struct
       Attr.has_deriver deriver_name decl.ptype_attributes)
 end
 
-(** {1 Payload construction and extraction} *)
+(** {1 Longident} *)
 
-let longident_of_module_expr_opt (module_expr : Parsetree.module_expr)
-    : Longident.t option =
-  match module_expr.pmod_desc with
-  | Pmod_ident { txt; _ } -> Some txt
-  | _ -> None
+module Longident = struct
+  include Longident
 
-let rec longident_of_expression_opt (expression : Parsetree.expression)
-    : Longident.t option =
-  match expression.pexp_desc with
-  | Pexp_ident { txt; _ } -> Some txt
-  | Pexp_construct ({ txt; _ }, None) -> Some txt
-  | _ ->
-      match Exp.destruct_open expression with
-      | Some (open_decl, expr) ->
-          begin match longident_of_module_expr_opt open_decl.popen_expr with
-          | None -> None
-          | Some a ->
-              match longident_of_expression_opt expr with
-              | None -> None
-              | Some b ->
-                  Some (concat_ident a b)
-          end
-      | _ -> None
+  let make ?prefix name =
+    make_ident ?prefix name
 
-let longident_of_payload (payload : Parsetree.payload) : Longident.t =
-  match
+  let rec concat (a : t) (b : t) : t =
+    match b with
+    | Lident b -> Ldot (a, b)
+    | Ldot (m, name) -> Ldot (concat a m, name)
+    | Lapply (m, x) -> Lapply (concat a m, x)
+
+  let rec compare (a : t) (b : t) : int =
+    match a, b with
+    | Lident a, Lident b -> String.compare a b
+    | Ldot (am, ax), Ldot (bm, bx) ->
+        compare_pair compare String.compare (am, ax) (bm, bx)
+    | Lapply (af, am), Lapply (bf, bm) ->
+        compare_pair compare compare (af, am) (bf, bm)
+    | Lident _, (Ldot _ | Lapply _)
+    | Ldot _, Lapply _ -> -1
+    | Lapply _, Ldot _ -> 1
+    | (Ldot _ | Lapply _), Lident _ -> 1
+
+  let equal (a : t) (b : t) : bool =
+    compare a b = 0
+
+  let rec hash (a : t) : int =
+    match a with
+    | Lident a -> Hashtbl.hash (1, a)
+    | Ldot (a, b) -> Hashtbl.hash (hash a, b)
+    | Lapply (m, x) -> Hashtbl.hash (hash m, hash x)
+
+  let pp (fmt : Format.formatter) (ident : Longident.t) =
+    Pprintast.longident fmt ident
+
+  let show (ident : Longident.t) : string =
+    Format.asprintf "%a" pp ident
+
+  let of_module_expr_opt (module_expr : Parsetree.module_expr)
+      : Longident.t option =
+    match module_expr.pmod_desc with
+    | Pmod_ident { txt; _ } -> Some txt
+    | _ -> None
+
+  let rec of_expression_opt (expression : Parsetree.expression) : t option =
+    match expression.pexp_desc with
+    | Pexp_ident { txt; _ } -> Some txt
+    | Pexp_construct ({ txt; _ }, None) -> Some txt
+    | _ ->
+        Option.bind (Exp.destruct_open expression) (fun (open_decl, expr) ->
+          Option.bind (of_module_expr_opt open_decl.popen_expr) (fun a ->
+            Option.map (concat a) (of_expression_opt expr)))
+
+  let of_payload_opt (payload : Parsetree.payload) : t option =
     match payload with
     | PStr [{ pstr_desc = Pstr_eval (expression, [])}] ->
-        longident_of_expression_opt expression
+        of_expression_opt expression
     | _ -> None
-  with
-  | Some ident -> ident
-  | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
-        "Identifier expected"
+
+  let of_payload (payload : Parsetree.payload) : t =
+    match of_payload_opt payload with
+    | Some ident -> ident
+    | _ ->
+        Location.raise_errorf ~loc:!Ast_helper.default_loc "Identifier expected"
+end
+
+let mklid ?prefix name =
+  mkloc (Longident.make ?prefix name)
 
 (** {1 Mapper for [[@if bool]] notation} *)
 

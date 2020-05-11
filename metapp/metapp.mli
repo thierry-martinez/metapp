@@ -41,8 +41,6 @@ val string_of_payload : Parsetree.payload -> string
 
 val bool_of_payload : Parsetree.payload -> bool
 
-val longident_of_payload : Parsetree.payload -> Longident.t
-
 (** {1 Location management} *)
 
 val mkloc : 'a -> 'a Location.loc
@@ -51,13 +49,37 @@ val map_loc : ('a -> 'b) -> 'a Location.loc -> 'b Location.loc
 
 val with_loc : ('a -> 'b) -> 'a Location.loc -> 'b
 
-(** {1 Constructing identifiers } *)
+(** {1 Longident } *)
 
-val make_ident : ?prefix : Longident.t -> string -> Longident.t
+type 'a comparer = 'a -> 'a -> int
 
-val ident : ?attrs : Parsetree.attributes -> Longident.t -> Parsetree.expression
+module Longident : sig
+  type t = Longident.t
 
-val concat_ident : Longident.t -> Longident.t -> Longident.t
+  val compare : t comparer
+
+  val equal : t -> t -> bool
+
+  val hash : t -> int
+
+  val pp : Format.formatter -> t -> unit
+
+  val show : t -> string
+
+  val make : ?prefix : t -> string -> t
+
+  val concat : Longident.t -> t -> Longident.t
+
+  val of_module_expr_opt : Parsetree.module_expr -> Longident.t option
+
+  val of_expression_opt : Parsetree.expression -> Longident.t option
+
+  val of_payload_opt : Parsetree.payload -> Longident.t option
+
+  val of_payload : Parsetree.payload -> Longident.t
+end
+
+val mklid : ?prefix : Longident.t -> string -> Ast_helper.lid
 
 (** {1 Constructing function application} *)
 
@@ -401,6 +423,14 @@ end
 module Exp : sig
   include ValueS with type t = Parsetree.expression
 
+  val ident :
+      ?loc:Location.t -> ?attrs:Parsetree.attributes -> Longident.t ->
+        Parsetree.expression
+
+  val ident_of_str :
+      ?attrs:Parsetree.attributes -> Ast_helper.lid ->
+        Parsetree.expression
+
   val send :
       ?loc:Location.t -> ?attrs:Parsetree.attributes -> Parsetree.expression ->
         Ast_helper.str -> Parsetree.expression
@@ -495,6 +525,10 @@ module With : sig
 end
 
 (** {1 General purpose functions} *)
+
+val compare_pair : 'a comparer -> 'b comparer -> ('a * 'b) comparer
+
+val compare_list : 'a comparer -> 'a list comparer
 
 val update : ('a -> 'b * 'a) ->  'a ref -> 'b
 

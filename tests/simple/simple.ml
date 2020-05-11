@@ -18,8 +18,8 @@ let () =
 let r = ref None
 
 [%%meta Ast_helper.Str.eval (Metapp_preutils.apply
-  (Metapp_preutils.ident (Lident ":="))
-  [Metapp_preutils.ident (Lident "r");
+  (Metapp_preutils.Exp.var ":=")
+  [Metapp_preutils.Exp.var "r";
     Metapp_preutils.Exp.construct (Lident "Some")
       [Metapp_preutils.Exp.of_string "Hello"]])]
 
