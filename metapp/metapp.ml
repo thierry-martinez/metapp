@@ -302,7 +302,10 @@ module Longident = struct
     | Lapply (m, x) -> Hashtbl.hash (hash m, hash x)
 
   let pp (fmt : Format.formatter) (ident : Longident.t) =
-    Pprintast.longident fmt ident
+    [%meta if Sys.ocaml_version >= "4.08.0" then [%e
+      Pprintast.longident fmt ident]
+    else [%e
+      Pprintast.expression fmt (Exp.ident ident)]]
 
   let show (ident : Longident.t) : string =
     Format.asprintf "%a" pp ident
