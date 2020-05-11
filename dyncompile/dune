@@ -1,0 +1,4 @@
+(library
+  (name dyncompile)
+  (public_name metapp.dyncompile)
+  (libraries compiler-libs))

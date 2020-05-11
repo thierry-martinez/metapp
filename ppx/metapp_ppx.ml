@@ -14,17 +14,19 @@ let extension_of_index (i : int) : Parsetree.extension =
   (Metapp_preutils.mkloc "meta", Metapp_preutils.payload_of_int i)
 
 let deref (e : Parsetree.expression) : Parsetree.expression =
-  Metapp_preutils.apply (Metapp_preutils.ident (Lident "!")) [e]
+  Metapp_preutils.apply (Metapp_preutils.Exp.var "!") [e]
 
 let array_get (a : Parsetree.expression) (index : int) : Parsetree.expression =
   let i = Metapp_preutils.Exp.of_int index in
-  Metapp_preutils.apply (Metapp_preutils.ident (Ldot (Lident "Array", "get")))
+  Metapp_preutils.apply
+    (Metapp_preutils.Exp.ident (Ldot (Lident "Array", "get")))
     [a; i]
 
 let array_set (a : Parsetree.expression) (index : int)
     (v : Parsetree.expression) : Parsetree.expression =
   let i = Metapp_preutils.Exp.of_int index in
-  Metapp_preutils.apply (Metapp_preutils.ident (Ldot (Lident "Array", "set")))
+  Metapp_preutils.apply
+    (Metapp_preutils.Exp.ident (Ldot (Lident "Array", "set")))
     [a; i; v]
 
 let string_list_of_payload (payload : Parsetree.payload) : string list =
@@ -32,45 +34,7 @@ let string_list_of_payload (payload : Parsetree.payload) : string list =
     (Metapp_preutils.list_of_tuple (Metapp_preutils.Exp.of_payload payload))
 
 module Options = struct
-  type t = {
-      packages : string list;
-      directories : string list;
-      flags : string list;
-      plainsource : bool;
-      debug_findlib : bool;
-    }
-
-  let empty = {
-    packages = [];
-    directories = [];
-    flags = [];
-    plainsource = false;
-    debug_findlib = false;
-  }
-
-  let rev options =
-    { options with
-      packages = List.rev options.packages;
-      directories = List.rev options.directories;
-      flags = List.rev options.flags }
-
-  let add_directories directories options =
-    { options with
-      directories = List.rev_append directories options.directories }
-
-  let add_packages packages options =
-    { options with
-      packages = List.rev_append packages options.packages }
-
-  let add_flags flags options =
-    { options with
-      flags = List.rev_append flags options.flags }
-
-  let set_plainsource plainsource options =
-    { options with plainsource }
-
-  let set_debug_findlib debug_findlib options =
-    { options with debug_findlib }
+  include Dyncompile.Options
 
   let handle (({ txt; _ }, payload) : Parsetree.extension) : (t -> t) option =
     match txt with
@@ -223,7 +187,7 @@ let field_get (expr : Parsetree.expression) (field : string)
   Ast_helper.Exp.field expr (Metapp_preutils.mkloc (Longident.Lident field))
 
 let context_get (field : string) : Parsetree.expression =
-  field_get (Metapp_preutils.ident (Lident context_var)) field
+  field_get (Metapp_preutils.Exp.var context_var) field
 
 let replace_metapoints (contents : Metapp_api.OptionArrayMetapoints.t)
     : Ast_mapper.mapper =
@@ -285,7 +249,7 @@ let rec extract_subquotations
               (field_get (context_get subquotations_field) field_name) index)]
           (Metapp_preutils.sequence
             (List.map get_expression escape.instructions @
-              [Metapp_preutils.apply (Metapp_preutils.ident (Lident fill_var))
+              [Metapp_preutils.apply (Metapp_preutils.Exp.var fill_var)
                 [Metapp_preutils.Exp.of_unit ()]])) in
   { Ast_mapper.default_mapper with expr }
 
@@ -309,7 +273,7 @@ and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
       let extracted_expr =
         Metapp_preutils.Exp.some
           (Metapp_preutils.apply
-            (Metapp_preutils.ident
+            (Metapp_preutils.Exp.ident
               (Ldot (Lident "Ast_helper", "with_default_loc")))
             [array_get (field_get (context_get loc_field) field) index;
               Ast_helper.Exp.function_
@@ -344,102 +308,6 @@ and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
       subquotations = unmut_subquotations subquotations; }} in
   (mapper, k)
 
-let output_structure (channel : out_channel) (s : Parsetree.structure) =
-  let fmt = Format.formatter_of_out_channel channel in
-  Pprintast.structure fmt s;
-  Format.pp_print_flush fmt ()
-
-type compiler = {
-    command : string;
-    archive_option : string;
-    archive_suffix : string;
-  }
-
-let compiler : compiler =
-  if Dynlink.is_native then {
-    command = "ocamlopt";
-    archive_option = "-shared";
-    archive_suffix = ".cmxs";
-  }
-  else {
-    command = "ocamlc";
-    archive_option = "-a";
-    archive_suffix = ".cma";
-  }
-
-let compile (options : Options.t) (source_filename : string)
-    (object_filename : string) : unit =
-  let flags =
-    options.flags @
-    List.concat_map (fun directory -> ["-I"; directory])
-      options.directories @
-    ["-I"; "+compiler-libs"; "-w"; "-40"; compiler.archive_option;
-      source_filename; "-o"; object_filename] in
-  let preutils_cmi = "metapp_preutils.cmi" in
-  let api_cmi = "metapp_api.cmi" in
-  let dune_preutils_path = "preutils/.metapp_preutils.objs/byte/" in
-  let dune_api_path = "api/.metapp_api.objs/byte/" in
-  let (flags, packages) =
-    if Sys.file_exists preutils_cmi && Sys.file_exists api_cmi then
-      (flags, options.packages)
-    else if Sys.file_exists (Filename.concat dune_preutils_path preutils_cmi) &&
-      Sys.file_exists (Filename.concat dune_api_path api_cmi) then
-      (["-I"; dune_preutils_path; "-I"; dune_api_path] @ flags,
-        options.packages)
-    else
-      (flags, ["metapp.preutils"; "metapp.api"] @ options.packages) in
-  let commands =
-    match packages with
-    | [] ->
-        [(compiler.command ^ ".opt", flags); (compiler.command, flags)]
-    | _ ->
-        [("ocamlfind",
-          [compiler.command; "-package"; String.concat "," packages] @
-          flags)] in
-  let rec try_commands list =
-    match list with
-    | [] -> assert false
-    | (command, args) :: tl ->
-        let command_line = Filename.quote_command command args in
-        match Sys.command command_line with
-        | 0 -> ()
-        | 127 when tl <> [] -> try_commands tl
-        | exit_code ->
-            Location.raise_errorf ~loc:!Ast_helper.default_loc
-              "@[Unable@ to@ compile@ preprocessor:@ command-line@ \"%s\"@ \
-                failed@ with@ exit-code@ %d@]@."
-              (String.escaped command_line) exit_code in
-  try_commands commands
-
-(* Code taken from pparse.ml (adapted for a channel instead of a filename to use
-   open_temp_file), because Pparse.write_ast is introduced in OCaml 4.04.0. *)
-let write_ast (plainsource : bool) (channel : out_channel)
-    (structure : Parsetree.structure) : unit =
-  if plainsource then
-    Format.fprintf (Format.formatter_of_out_channel channel)
-      "%a@." Pprintast.structure structure
-  else
-    begin
-      output_string channel Config.ast_impl_magic_number;
-      output_value channel !Location.input_name;
-      output_value channel structure
-    end
-
-let compile_and_load (options : Options.t) (structure : Parsetree.structure)
-  : unit =
-  let (source_filename, channel) = Filename.open_temp_file "metapp" ".ml" in
-  Fun.protect (fun () ->
-    Fun.protect (fun () ->
-      write_ast options.plainsource channel structure)
-      ~finally:(fun () -> close_out channel);
-    let object_filename =
-      Filename.remove_extension source_filename ^
-      compiler.archive_suffix in
-    compile options source_filename object_filename;
-    Fun.protect (fun () -> Dynlink.loadfile object_filename)
-      ~finally:(fun () -> Sys.remove object_filename))
-    ~finally:(fun () -> Sys.remove source_filename)
-
 let transform (root_mapper : Ast_mapper.mapper)
     (get_mapper : Ast_mapper.mapper -> 'a Metapp_preutils.mapper_item)
     (s : 'a) : 'a =
@@ -464,7 +332,7 @@ let transform (root_mapper : Ast_mapper.mapper)
   let initial_parsetree =
     [Ast_helper.Str.value Nonrecursive
       [Ast_helper.Vb.mk (Metapp_preutils.Pat.var context_var)
-        (Ast_helper.Exp.match_ (deref (Metapp_preutils.ident
+        (Ast_helper.Exp.match_ (deref (Metapp_preutils.Exp.ident
           (Ldot (metapp_api, "top_context"))))
           [Ast_helper.Exp.case (Metapp_preutils.Pat.none ())
             (Ast_helper.Exp.assert_ (Metapp_preutils.Exp.of_bool false));
@@ -491,7 +359,7 @@ let transform (root_mapper : Ast_mapper.mapper)
       Findlib_for_ppx.load_packages ~debug:options.debug_findlib
         options.packages;
     end;
-  compile_and_load options parsetree;
+  Dyncompile.compile_and_load options parsetree;
   let mapper = replace_metapoints context.metapoints in
   get_mapper mapper mapper s
 
