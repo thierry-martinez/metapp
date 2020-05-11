@@ -2,7 +2,7 @@
 
 - Compatibility with OCaml 4.11.0
 
-- More utility functions in Metapp module to construct and destruct OCaml's
+- More utility functions in `Metapp` module to construct and destruct OCaml's
   parsetree in a version-independent way
 
 - Functions for invoking OCaml compiler and loading modules dynamically are
