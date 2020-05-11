@@ -1,4 +1,6 @@
 [%%metadir "metapp/.metapp.objs/byte/"]
+[%%metapackage "stdcompat"]
+[%%metaflag "-open", "Stdcompat"]
 
 let () =
   Test_framework.assert_eq Int.equal Format.pp_print_int
