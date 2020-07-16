@@ -24,4 +24,5 @@ compile-time.
   (stdcompat (>= 12))
   (ocaml-migrate-parsetree (>= 1.7.3))
   (ocamlfind (>= 1.8.1))
-  (dune (>= 1.11.0))))
+  (dune (>= 1.11.0))
+  (odoc (and :with-doc (>= 1.5.1)))))
