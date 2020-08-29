@@ -115,12 +115,14 @@ end
 
 (** {1 Generic signature for extensible nodes} *)
 
+type destruct_extension = Parsetree.extension * Parsetree.attributes
+
 module type ExtensibleS = sig
   include VisitableS
 
   val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
 
-  val destruct_extension : t -> Parsetree.extension option
+  val destruct_extension : t -> destruct_extension option
 end
 
 module type PayloadS = sig

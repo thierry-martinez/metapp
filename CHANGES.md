@@ -1,3 +1,8 @@
+# Version 0.3.0, in development
+
+- `Metapp.ExtensibleS.destruct_extension` returns a pair `Some (e, attrs)` where
+  `e` is the extension and `attrs` is the list of optional attributes.
+
 # Version 0.2.0, 2020-05-11
 
 - Compatibility with OCaml 4.11.0

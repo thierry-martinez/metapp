@@ -36,7 +36,8 @@ let string_list_of_payload (payload : Parsetree.payload) : string list =
 module Options = struct
   include Dyncompile.Options
 
-  let handle (({ txt; _ }, payload) : Parsetree.extension) : (t -> t) option =
+  let handle ((({ txt; _ }, payload), _) : Metapp_preutils.destruct_extension) :
+      (t -> t) option =
     match txt with
     | "metaload" ->
         let add_object_file object_file =
@@ -113,7 +114,7 @@ let metapoint_mapper (mapper : (module MetapointsMapperS)) : Ast_mapper.mapper =
     let map (mapper : Ast_mapper.mapper) (m : Metapoint.t) : Metapoint.t =
       Ast_helper.with_default_loc (Metapoint.to_loc m) @@ fun () ->
       match Metapoint.destruct_extension m with
-      | Some ({ txt = "meta"; _ }, payload) ->
+      | Some (({ txt = "meta"; _ }, payload), _) ->
           let module Map = Mapper (Metapoint) in
           Map.map payload
     | _ -> Metapoint.mapper.get Ast_mapper.default_mapper mapper m
@@ -288,7 +289,7 @@ and extract_metapoints () : Ast_mapper.mapper * (unit -> AccuTypes.escape) =
     let map (mapper : Ast_mapper.mapper) (item : Item.t) : Item.t =
       Ast_helper.with_default_loc (Item.to_loc item) @@ fun () ->
       match Item.destruct_extension item with
-      | Some ({ txt = "metadef"; _ }, payload) ->
+      | Some (({ txt = "metadef"; _ }, payload), _) ->
           let defs =
             mapper_subquotations.structure mapper_subquotations
               (Metapp_preutils.Str.of_payload payload) in

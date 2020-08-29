@@ -143,12 +143,14 @@ end
 
 (** {1 Generic signature for extensible nodes} *)
 
+type destruct_extension = Parsetree.extension * Parsetree.attributes
+
 module type ExtensibleS = sig
   include VisitableS
 
   val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
 
-  val destruct_extension : t -> Parsetree.extension option
+  val destruct_extension : t -> destruct_extension option
 end
 
 module type PayloadS = sig
@@ -186,10 +188,10 @@ module Cty : ExtensibleS with type t = Parsetree.class_type = struct
   let extension ?attrs (e : Parsetree.extension) : t =
     Ast_helper.Cty.extension ?attrs e
 
-  let destruct_extension (cty : Parsetree.class_type)
-      : Parsetree.extension option =
+  let destruct_extension (cty : Parsetree.class_type) :
+      destruct_extension option =
     match cty.pcty_desc with
-    | Pcty_extension e -> Some e
+    | Pcty_extension e -> Some (e, cty.pcty_attributes)
     | _ -> None
 end
 
@@ -213,9 +215,9 @@ module Ctf : ExtensibleS with type t = Parsetree.class_type_field = struct
     Ast_helper.Ctf.extension ?attrs e
 
   let destruct_extension (ctf : Parsetree.class_type_field)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match ctf.pctf_desc with
-    | Pctf_extension e -> Some e
+    | Pctf_extension e -> Some (e, ctf.pctf_attributes)
     | _ -> None
 end
 
@@ -239,9 +241,9 @@ module Cl : ExtensibleS with type t = Parsetree.class_expr = struct
     Ast_helper.Cl.extension ?attrs e
 
   let destruct_extension (cl : Parsetree.class_expr)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match cl.pcl_desc with
-    | Pcl_extension e -> Some e
+    | Pcl_extension e -> Some (e, cl.pcl_attributes)
     | _ -> None
 end
 
@@ -265,9 +267,9 @@ module Cf : ExtensibleS with type t = Parsetree.class_field = struct
     Ast_helper.Cf.extension ?attrs e
 
   let destruct_extension (cf : Parsetree.class_field)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match cf.pcf_desc with
-    | Pcf_extension e -> Some e
+    | Pcf_extension e -> Some (e, cf.pcf_attributes)
     | _ -> None
 end
 
@@ -291,9 +293,9 @@ module Mty : ExtensibleS with type t = Parsetree.module_type = struct
     Ast_helper.Mty.extension ?attrs e
 
   let destruct_extension (mty : Parsetree.module_type)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match mty.pmty_desc with
-    | Pmty_extension e -> Some e
+    | Pmty_extension e -> Some (e, mty.pmty_attributes)
     | _ -> None
 end
 
@@ -317,9 +319,9 @@ module Mod : ExtensibleS with type t = Parsetree.module_expr = struct
     Ast_helper.Mod.extension ?attrs e
 
   let destruct_extension (m : Parsetree.module_expr)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match m.pmod_desc with
-    | Pmod_extension e -> Some e
+    | Pmod_extension e -> Some (e, m.pmod_attributes)
     | _ -> None
 end
 
@@ -348,9 +350,9 @@ module Stri = struct
     Ast_helper.Str.extension ?attrs e
 
   let destruct_extension (s : Parsetree.structure_item)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match s.pstr_desc with
-    | Pstr_extension (e, _) -> Some e
+    | Pstr_extension (e, attr) -> Some (e, attr)
     | _ -> None
 
   let of_payload (payload : Parsetree.payload)
@@ -422,9 +424,9 @@ module Sigi = struct
     Ast_helper.Sig.extension ?attrs e
 
   let destruct_extension (s : Parsetree.signature_item)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match s.psig_desc with
-    | Psig_extension (e, _) -> Some e
+    | Psig_extension (e, attr) -> Some (e, attr)
     | _ -> None
 
   let of_payload (payload : Parsetree.payload) : Parsetree.signature_item =
@@ -697,9 +699,9 @@ module Exp = struct
       Ast_helper.Exp.extension ?attrs e
 
     let destruct_extension (e : Parsetree.expression)
-        : Parsetree.extension option =
+        : destruct_extension option =
       match e.pexp_desc with
-      | Pexp_extension extension -> Some extension
+      | Pexp_extension extension -> Some (extension, e.pexp_attributes)
       | _ -> None
 
     let of_payload (payload : Parsetree.payload) : Parsetree.expression =
@@ -735,9 +737,9 @@ module Typ = struct
     Ast_helper.Typ.extension ?attrs e
 
   let destruct_extension (ty : Parsetree.core_type)
-      : Parsetree.extension option =
+      : destruct_extension option =
     match ty.ptyp_desc with
-    | Ptyp_extension e -> Some e
+    | Ptyp_extension e -> Some (e, ty.ptyp_attributes)
     | _ -> None
 
   let of_payload (payload : Parsetree.payload) : Parsetree.core_type =
@@ -802,9 +804,9 @@ module Pat = ExtendValue (struct
   let extension ?attrs (e : Parsetree.extension) =
     Ast_helper.Pat.extension ?attrs e
 
-  let destruct_extension (e : Parsetree.pattern) : Parsetree.extension option =
+  let destruct_extension (e : Parsetree.pattern) : destruct_extension option =
     match e.ppat_desc with
-    | Ppat_extension extension -> Some extension
+    | Ppat_extension extension -> Some (extension, e.ppat_attributes)
     | _ -> None
 
   let of_payload (payload : Parsetree.payload) : Parsetree.pattern =
@@ -907,10 +909,8 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.extension ?attrs e;
       pat = Pat.extension ?attrs e; }
 
-  let destruct_extension (v : value) : Parsetree.extension option =
-    match v.exp.pexp_desc with
-    | Pexp_extension extension -> Some extension
-    | _ -> None
+  let destruct_extension (v : value) : destruct_extension option =
+    Exp.destruct_extension v.exp
 
   let of_payload _ =
     failwith "value cannot be obtained from payload"
