@@ -12,17 +12,17 @@ module type MetapointsS = sig
   type 'a x
 
   type t = {
-      expr : Parsetree.expression x;
-      pat : Parsetree.pattern x;
-      typ : Parsetree.core_type x;
-      class_type : Parsetree.class_type x;
-      class_type_field : Parsetree.class_type_field x;
-      class_expr : Parsetree.class_expr x;
-      class_field : Parsetree.class_field x;
-      module_type : Parsetree.module_type x;
-      module_expr : Parsetree.module_expr x;
-      signature_item : Parsetree.signature_item x;
-      structure_item : Parsetree.structure_item x;
+      expr : Ppxlib.expression x;
+      pat : Ppxlib.pattern x;
+      typ : Ppxlib.core_type x;
+      class_type : Ppxlib.class_type x;
+      class_type_field : Ppxlib.class_type_field x;
+      class_expr : Ppxlib.class_expr x;
+      class_field : Ppxlib.class_field x;
+      module_type : Ppxlib.module_type x;
+      module_expr : Ppxlib.module_expr x;
+      signature_item : Ppxlib.signature_item x;
+      structure_item : Ppxlib.structure_item x;
     }
 end
 
@@ -30,13 +30,13 @@ module type QuotationsS = sig
   type 'a x
 
   type t = {
-      expr : Parsetree.expression x;
-      pat : Parsetree.pattern x;
-      typ : Parsetree.core_type x;
-      signature : Parsetree.signature x;
-      signature_item : Parsetree.signature_item x;
-      structure : Parsetree.structure x;
-      structure_item : Parsetree.structure_item x;
+      expr : Ppxlib.expression x;
+      pat : Ppxlib.pattern x;
+      typ : Ppxlib.core_type x;
+      signature : Ppxlib.signature x;
+      signature_item : Ppxlib.signature_item x;
+      structure : Ppxlib.structure x;
+      structure_item : Ppxlib.structure_item x;
     }
 end
 
@@ -53,7 +53,7 @@ end
 module type QuotationS = sig
   include Metapp_preutils.VisitableS
 
-  val of_payload : Parsetree.payload -> t
+  val of_payload : Ppxlib.payload -> t
 
   module QuotationAccessor (Collector : QuotationsS) : sig
     val get : Collector.t -> t Collector.x

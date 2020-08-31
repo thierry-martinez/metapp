@@ -17,7 +17,7 @@ let () =
 
 let r = ref None
 
-[%%meta Ast_helper.Str.eval (Metapp_preutils.apply
+[%%meta Ppxlib.Ast_helper.Str.eval (Metapp_preutils.apply
   (Metapp_preutils.Exp.var ":=")
   [Metapp_preutils.Exp.var "r";
     Metapp_preutils.Exp.construct (Lident "Some")

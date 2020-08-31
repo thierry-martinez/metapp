@@ -5,13 +5,13 @@ let () =
   let counter = ref 0 in
   [%meta
      let e = [%e incr counter ] in
-     Ast_helper.Exp.sequence e e];
+     Ppxlib.Ast_helper.Exp.sequence e e];
   Test_framework.assert_eq Int.equal Format.pp_print_int !counter 2
 
 let () =
   match (0, 1, "hello", 3) with
   | [%meta
-      Ast_helper.Pat.tuple (List.init 4 (function
+      Ppxlib.Ast_helper.Pat.tuple (List.init 4 (function
       | 2 -> [%p? x]
       | _ -> [%p? _]))] ->
       Test_framework.assert_eq String.equal Format.pp_print_string x "hello"

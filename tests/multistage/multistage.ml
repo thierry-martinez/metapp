@@ -1,3 +1,5 @@
+[%%metaflag "-dsource"]
+
 [%%metadef
   [%%metadef
      let world () =

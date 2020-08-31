@@ -1,7 +1,7 @@
 (** {1 Coercions} *)
 
-let int_of_expression (e : Parsetree.expression) : int =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+let int_of_expression (e : Ppxlib.expression) : int =
+  Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
   match
     match e.pexp_desc with
     | Pexp_constant (Pconst_integer (value, _)) ->
@@ -11,18 +11,16 @@ let int_of_expression (e : Parsetree.expression) : int =
   with
   | Some result -> result
   | None ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
+      Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
         "Integer value expected"
 
-let destruct_string_constant (constant : Parsetree.constant) : string option =
+let destruct_string_constant (constant : Ppxlib.constant) : string option =
   match constant with
-  | Pconst_string _ as str ->
-      (* Hack for OCaml 4.11.0 *)
-      Some (Obj.obj (Obj.field (Obj.repr str) 0))
+  | Pconst_string (s, _) -> Some s
   | _ -> None
 
-let string_of_expression (expression : Parsetree.expression) : string =
-  Ast_helper.with_default_loc expression.pexp_loc @@ fun () ->
+let string_of_expression (expression : Ppxlib.expression) : string =
+  Ppxlib.Ast_helper.with_default_loc expression.pexp_loc @@ fun () ->
   match
     match expression.pexp_desc with
     | Pexp_constant constant -> destruct_string_constant constant
@@ -30,10 +28,10 @@ let string_of_expression (expression : Parsetree.expression) : string =
   with
   | Some value -> value
   | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
+      Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
         "String value expected"
 
-let string_of_arbitrary_expression (expression : Parsetree.expression)
+let string_of_arbitrary_expression (expression : Ppxlib.expression)
     : string =
   match
     match expression.pexp_desc with
@@ -42,62 +40,62 @@ let string_of_arbitrary_expression (expression : Parsetree.expression)
   with
   | Some value -> value
   | _ ->
-      Format.asprintf "%a" Pprintast.expression expression
+      Format.asprintf "%a" Ppxlib.Pprintast.expression expression
 
-let bool_of_expression (e : Parsetree.expression) : bool =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+let bool_of_expression (e : Ppxlib.expression) : bool =
+  Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
   match e.pexp_desc with
   | Pexp_construct ({ txt = Lident "false"; _ }, None) ->
       false
   | Pexp_construct ({ txt = Lident "true"; _ }, None) ->
       true
   | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
+      Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
         "Boolean value expected"
 
-let pair_of_expression (e : Parsetree.expression)
-    : Parsetree.expression * Parsetree.expression =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+let pair_of_expression (e : Ppxlib.expression)
+    : Ppxlib.expression * Ppxlib.expression =
+  Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
   match e.pexp_desc with
   | Pexp_tuple [a; b] -> (a, b)
   | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
+      Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
         "Pair expected"
 
-let rec list_of_expression (e : Parsetree.expression)
-    : Parsetree.expression list =
-  Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+let rec list_of_expression (e : Ppxlib.expression)
+    : Ppxlib.expression list =
+  Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
   match e.pexp_desc with
   | Pexp_construct ({ txt = Lident "[]"; _ }, None) -> []
   | Pexp_construct ({ txt = Lident "::"; _ }, Some pair) ->
       let (hd, tl) = pair_of_expression pair in
       hd :: list_of_expression tl
   | _ ->
-      Location.raise_errorf ~loc:!Ast_helper.default_loc
+      Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
         "List expected"
 
-let list_of_tuple (e : Parsetree.expression) : Parsetree.expression list =
+let list_of_tuple (e : Ppxlib.expression) : Ppxlib.expression list =
   match e.pexp_desc with
   | Pexp_tuple list -> list
   | Pexp_construct ({ txt = Lident "()"; _}, None) -> []
   | _ -> [e]
 
-let structure_of_expression (e : Parsetree.expression) : Parsetree.structure =
-  [Ast_helper.Str.eval e]
+let structure_of_expression (e : Ppxlib.expression) : Ppxlib.structure =
+  [Ppxlib.Ast_helper.Str.eval e]
 
-let lid_of_str (str : Ast_helper.str) : Ast_helper.lid =
+let lid_of_str (str : Ppxlib.Ast_helper.str) : Ppxlib.Ast_helper.lid =
   Location.mkloc (Longident.Lident str.txt) str.loc
 
 (** {1 Location management} *)
 
 let mkloc (txt : 'a) : 'a Location.loc =
-  { txt; loc = !Ast_helper.default_loc }
+  { txt; loc = !Ppxlib.Ast_helper.default_loc }
 
 let map_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b Location.loc =
-  Ast_helper.with_default_loc l.loc (fun () -> { l with txt = f l.txt })
+  Ppxlib.Ast_helper.with_default_loc l.loc (fun () -> { l with txt = f l.txt })
 
 let with_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b =
-  Ast_helper.with_default_loc l.loc (fun () -> f l.txt)
+  Ppxlib.Ast_helper.with_default_loc l.loc (fun () -> f l.txt)
 
 (** {1 Constructing identifiers } *)
 
@@ -109,46 +107,42 @@ let make_ident ?(prefix : Longident.t option) (s : string) : Longident.t =
 (** {1 Constructing function application} *)
 
 let nolabel arg =
-  (Asttypes.Nolabel, arg)
+  (Ppxlib.Asttypes.Nolabel, arg)
 
 let nolabels args =
   List.map nolabel args
 
-let apply ?attrs (f : Parsetree.expression)
-    ?(labels : (string * Parsetree.expression) list = [])
-    (args : Parsetree.expression list) : Parsetree.expression =
-  Ast_helper.Exp.apply ?attrs f
-    (List.map (fun (l, e) -> (Asttypes.Labelled l, e)) labels @ nolabels args)
+let apply ?attrs (f : Ppxlib.expression)
+    ?(labels : (string * Ppxlib.expression) list = [])
+    (args : Ppxlib.expression list) : Ppxlib.expression =
+  Ppxlib.Ast_helper.Exp.apply ?attrs f
+    (List.map (fun (l, e) -> (Ppxlib.Asttypes.Labelled l, e)) labels @
+      nolabels args)
 
 (** {1 Generic signature for visitable nodes} *)
 
-type 'a iterator_item = Ast_iterator.iterator -> 'a -> unit
+type 'a iter = 'a -> unit
 
-type 'a mapper_item = Ast_mapper.mapper -> 'a -> 'a
-
-type ('cell, 'contents) accessor = {
-    get : 'cell -> 'contents;
-    set : 'contents -> 'cell -> 'cell;
-  }
+type 'a map = 'a -> 'a
 
 module type VisitableS = sig
   type t
 
   val to_loc : t -> Location.t
 
-  val iterator : (Ast_iterator.iterator, t iterator_item) accessor
+  val iter : #Ppxlib.Ast_traverse.iter -> t iter
 
-  val mapper : (Ast_mapper.mapper, t mapper_item) accessor
+  val map : #Ppxlib.Ast_traverse.map -> t map
 end
 
 (** {1 Generic signature for extensible nodes} *)
 
-type destruct_extension = Parsetree.extension * Parsetree.attributes
+type destruct_extension = Ppxlib.extension * Ppxlib.attributes
 
 module type ExtensibleS = sig
   include VisitableS
 
-  val extension : ?attrs:Parsetree.attributes -> Parsetree.extension -> t
+  val extension : ?attrs:Ppxlib.attributes -> Ppxlib.extension -> t
 
   val destruct_extension : t -> destruct_extension option
 end
@@ -156,9 +150,9 @@ end
 module type PayloadS = sig
   type t
 
-  val of_payload : Parsetree.payload -> t
+  val of_payload : Ppxlib.payload -> t
 
-  val to_payload : t -> Parsetree.payload
+  val to_payload : t -> Ppxlib.payload
 end
 
 module type ItemS = sig
@@ -169,156 +163,131 @@ module type ItemS = sig
   val of_list : t list -> t
 end
 
-module Cty : ExtensibleS with type t = Parsetree.class_type = struct
-  type t = Parsetree.class_type
+module Cty : ExtensibleS with type t = Ppxlib.class_type = struct
+  type t = Ppxlib.class_type
 
-  let to_loc (cty : Parsetree.class_type) : Location.t =
+  let to_loc (cty : Ppxlib.class_type) : Location.t =
     cty.pcty_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { class_type; _ } -> class_type);
-    set = (fun class_type iterator -> { iterator with class_type })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#class_type
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { class_type; _ } -> class_type);
-    set = (fun class_type mapper -> { mapper with class_type })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#class_type
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Cty.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Cty.extension ?attrs e
 
-  let destruct_extension (cty : Parsetree.class_type) :
+  let destruct_extension (cty : Ppxlib.class_type) :
       destruct_extension option =
     match cty.pcty_desc with
     | Pcty_extension e -> Some (e, cty.pcty_attributes)
     | _ -> None
 end
 
-module Ctf : ExtensibleS with type t = Parsetree.class_type_field = struct
-  type t = Parsetree.class_type_field
+module Ctf : ExtensibleS with type t = Ppxlib.class_type_field = struct
+  type t = Ppxlib.class_type_field
 
-  let to_loc (ctf : Parsetree.class_type_field) : Location.t =
+  let to_loc (ctf : Ppxlib.class_type_field) : Location.t =
     ctf.pctf_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { class_type_field; _ } -> class_type_field);
-    set = (fun class_type_field iterator -> { iterator with class_type_field })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#class_type_field
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { class_type_field; _ } -> class_type_field);
-    set = (fun class_type_field mapper -> { mapper with class_type_field })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =    map#class_type_field
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Ctf.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Ctf.extension ?attrs e
 
-  let destruct_extension (ctf : Parsetree.class_type_field)
+  let destruct_extension (ctf : Ppxlib.class_type_field)
       : destruct_extension option =
     match ctf.pctf_desc with
     | Pctf_extension e -> Some (e, ctf.pctf_attributes)
     | _ -> None
 end
 
-module Cl : ExtensibleS with type t = Parsetree.class_expr = struct
-  type t = Parsetree.class_expr
+module Cl : ExtensibleS with type t = Ppxlib.class_expr = struct
+  type t = Ppxlib.class_expr
 
-  let to_loc (cl : Parsetree.class_expr) : Location.t =
+  let to_loc (cl : Ppxlib.class_expr) : Location.t =
     cl.pcl_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { class_expr; _ } -> class_expr);
-    set = (fun class_expr iterator -> { iterator with class_expr })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#class_expr
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { class_expr; _ } -> class_expr);
-    set = (fun class_expr mapper -> { mapper with class_expr })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#class_expr
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Cl.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Cl.extension ?attrs e
 
-  let destruct_extension (cl : Parsetree.class_expr)
+  let destruct_extension (cl : Ppxlib.class_expr)
       : destruct_extension option =
     match cl.pcl_desc with
     | Pcl_extension e -> Some (e, cl.pcl_attributes)
     | _ -> None
 end
 
-module Cf : ExtensibleS with type t = Parsetree.class_field = struct
-  type t = Parsetree.class_field
+module Cf : ExtensibleS with type t = Ppxlib.class_field = struct
+  type t = Ppxlib.class_field
 
-  let to_loc (cf : Parsetree.class_field) : Location.t =
+  let to_loc (cf : Ppxlib.class_field) : Location.t =
     cf.pcf_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { class_field; _ } -> class_field);
-    set = (fun class_field iterator -> { iterator with class_field })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#class_field
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { class_field; _ } -> class_field);
-    set = (fun class_field mapper -> { mapper with class_field })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#class_field
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Cf.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Cf.extension ?attrs e
 
-  let destruct_extension (cf : Parsetree.class_field)
+  let destruct_extension (cf : Ppxlib.class_field)
       : destruct_extension option =
     match cf.pcf_desc with
     | Pcf_extension e -> Some (e, cf.pcf_attributes)
     | _ -> None
 end
 
-module Mty : ExtensibleS with type t = Parsetree.module_type = struct
-  type t = Parsetree.module_type
+module Mty : ExtensibleS with type t = Ppxlib.module_type = struct
+  type t = Ppxlib.module_type
 
-  let to_loc (mty : Parsetree.module_type) : Location.t =
+  let to_loc (mty : Ppxlib.module_type) : Location.t =
     mty.pmty_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { module_type; _ } -> module_type);
-    set = (fun module_type iterator -> { iterator with module_type })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#module_type
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { module_type; _ } -> module_type);
-    set = (fun module_type mapper -> { mapper with module_type })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#module_type
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Mty.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Mty.extension ?attrs e
 
-  let destruct_extension (mty : Parsetree.module_type)
+  let destruct_extension (mty : Ppxlib.module_type)
       : destruct_extension option =
     match mty.pmty_desc with
     | Pmty_extension e -> Some (e, mty.pmty_attributes)
     | _ -> None
 end
 
-module Mod : ExtensibleS with type t = Parsetree.module_expr = struct
-  type t = Parsetree.module_expr
+module Mod : ExtensibleS with type t = Ppxlib.module_expr = struct
+  type t = Ppxlib.module_expr
 
-  let to_loc (m : Parsetree.module_expr) : Location.t =
+  let to_loc (m : Ppxlib.module_expr) : Location.t =
     m.pmod_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { module_expr; _ } -> module_expr);
-    set = (fun module_expr iterator -> { iterator with module_expr })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#module_expr
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { module_expr; _ } -> module_expr);
-    set = (fun module_expr mapper -> { mapper with module_expr })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#module_expr
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Mod.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Mod.extension ?attrs e
 
-  let destruct_extension (m : Parsetree.module_expr)
+  let destruct_extension (m : Ppxlib.module_expr)
       : destruct_extension option =
     match m.pmod_desc with
     | Pmod_extension e -> Some (e, m.pmod_attributes)
@@ -332,147 +301,132 @@ let range_loc (first : Location.t) (last : Location.t) : Location.t = {
 }
 
 module Stri = struct
-  type t = Parsetree.structure_item
+  type t = Ppxlib.structure_item
 
-  let to_loc (s : Parsetree.structure_item) : Location.t =
+  let to_loc (s : Ppxlib.structure_item) : Location.t =
     s.pstr_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { structure_item; _ } -> structure_item);
-    set = (fun structure_item iterator -> { iterator with structure_item })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#structure_item
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { structure_item; _ } -> structure_item);
-    set = (fun structure_item mapper -> { mapper with structure_item })
-  }
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Str.extension ?attrs e
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#structure_item
 
-  let destruct_extension (s : Parsetree.structure_item)
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Str.extension ?attrs e
+
+  let destruct_extension (s : Ppxlib.structure_item)
       : destruct_extension option =
     match s.pstr_desc with
     | Pstr_extension (e, attr) -> Some (e, attr)
     | _ -> None
 
-  let of_payload (payload : Parsetree.payload)
-      : Parsetree.structure_item =
+  let of_payload (payload : Ppxlib.payload)
+      : Ppxlib.structure_item =
     match payload with
     | PStr [item] -> item
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
           "Single structure item expected"
 
-  let to_payload (item : Parsetree.structure_item) : Parsetree.payload =
+  let to_payload (item : Ppxlib.structure_item) : Ppxlib.payload =
     PStr [item]
 
-  let of_list (structure : Parsetree.structure) : Parsetree.structure_item =
-    Ast_helper.Str.include_ (Ast_helper.Incl.mk
-      (Ast_helper.Mod.structure structure))
+  let of_list (structure : Ppxlib.structure) : Ppxlib.structure_item =
+    Ppxlib.Ast_helper.Str.include_ (Ppxlib.Ast_helper.Incl.mk
+      (Ppxlib.Ast_helper.Mod.structure structure))
 end
 
 let list_to_loc (item_to_loc : 'a -> Location.t) (l : 'a list) : Location.t =
   match l with
-  | [] -> !Ast_helper.default_loc
+  | [] -> !Ppxlib.Ast_helper.default_loc
   | first :: tl ->
       let last = List.fold_left (fun _ last -> last) first tl in
       range_loc (item_to_loc first) (item_to_loc last)
 
 module Str = struct
-  type t = Parsetree.structure
+  type t = Ppxlib.structure
 
-  let to_loc (s : Parsetree.structure) : Location.t =
+  let to_loc (s : Ppxlib.structure) : Location.t =
     list_to_loc Stri.to_loc s
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { structure; _ } -> structure);
-    set = (fun structure iterator -> { iterator with structure })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#structure
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { structure; _ } -> structure);
-    set = (fun structure mapper -> { mapper with structure })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#structure
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.structure =
+  let of_payload (payload : Ppxlib.payload) : Ppxlib.structure =
     match payload with
     | PStr str -> str
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc "Structure expected"
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc "Structure expected"
 
-  let to_payload (str : Parsetree.structure) : Parsetree.payload =
+  let to_payload (str : Ppxlib.structure) : Ppxlib.payload =
     PStr str
 end
 
 module Sigi = struct
-  type t = Parsetree.signature_item
+  type t = Ppxlib.signature_item
 
-  let to_loc (s : Parsetree.signature_item) : Location.t =
+  let to_loc (s : Ppxlib.signature_item) : Location.t =
     s.psig_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { signature_item; _ } -> signature_item);
-    set = (fun signature_item iterator -> { iterator with signature_item })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#signature_item
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { signature_item; _ } -> signature_item);
-    set = (fun signature_item mapper -> { mapper with signature_item })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#signature_item
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Sig.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Sig.extension ?attrs e
 
-  let destruct_extension (s : Parsetree.signature_item)
+  let destruct_extension (s : Ppxlib.signature_item)
       : destruct_extension option =
     match s.psig_desc with
     | Psig_extension (e, attr) -> Some (e, attr)
     | _ -> None
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.signature_item =
+  let of_payload (payload : Ppxlib.payload) : Ppxlib.signature_item =
     match payload with
     | PSig [item] -> item
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
           "Single signature item expected"
 
-  let to_payload (item : Parsetree.signature_item) : Parsetree.payload =
+  let to_payload (item : Ppxlib.signature_item) : Ppxlib.payload =
     PSig [item]
 
-  let of_list (signature : Parsetree.signature) : Parsetree.signature_item =
-    Ast_helper.Sig.include_ (Ast_helper.Incl.mk
-      (Ast_helper.Mty.signature signature))
+  let of_list (signature : Ppxlib.signature) : Ppxlib.signature_item =
+    Ppxlib.Ast_helper.Sig.include_ (Ppxlib.Ast_helper.Incl.mk
+      (Ppxlib.Ast_helper.Mty.signature signature))
 end
 
 module Sig = struct
-  type t = Parsetree.signature
+  type t = Ppxlib.signature
 
-  let to_loc (s : Parsetree.signature) : Location.t =
+  let to_loc (s : Ppxlib.signature) : Location.t =
     list_to_loc Sigi.to_loc s
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { signature; _ } -> signature);
-    set = (fun signature iterator -> { iterator with signature })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#signature
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { signature; _ } -> signature);
-    set = (fun signature mapper -> { mapper with signature })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#signature
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.signature =
+  let of_payload (payload : Ppxlib.payload) : Ppxlib.signature =
     match payload with
     | PSig sgn -> sgn
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc "Signature expected"
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc "Signature expected"
 
-  let to_payload (signature : Parsetree.signature) : Parsetree.payload =
+  let to_payload (signature : Ppxlib.signature) : Ppxlib.payload =
     PSig signature
 end
 
 type value = {
-    exp : Parsetree.expression;
-    pat : Parsetree.pattern;
+    exp : Ppxlib.expression;
+    pat : Ppxlib.pattern;
   }
 
 (** {1 Generic signature for expressions and patterns} *)
@@ -480,72 +434,72 @@ type value = {
 module type BaseValueS = sig
   include ExtensibleS
 
-  val var : ?attrs:Parsetree.attributes -> string -> t
+  val var : ?attrs:Ppxlib.attributes -> string -> t
 
-  val of_constant : ?attrs:Parsetree.attributes -> Parsetree.constant -> t
+  val of_constant : ?attrs:Ppxlib.attributes -> Ppxlib.constant -> t
 
-  val of_bytes : ?attrs:Parsetree.attributes -> bytes -> t
+  val of_bytes : ?attrs:Ppxlib.attributes -> bytes -> t
 
-  val force_tuple : ?attrs:Parsetree.attributes -> t list -> t
+  val force_tuple : ?attrs:Ppxlib.attributes -> t list -> t
 
   val force_construct :
-      ?attrs:Parsetree.attributes -> Ast_helper.lid -> t option -> t
+      ?attrs:Ppxlib.attributes -> Ppxlib.Ast_helper.lid -> t option -> t
 
-  val array : ?attrs:Parsetree.attributes -> t list -> t
+  val array : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val record : ?attrs:Parsetree.attributes -> (Longident.t * t) list -> t
+  val record : ?attrs:Ppxlib.attributes -> (Longident.t * t) list -> t
 
-  val variant : ?attrs:Parsetree.attributes -> string -> t option -> t
+  val variant : ?attrs:Ppxlib.attributes -> string -> t option -> t
 
-  val lazy_ :  ?attrs:Parsetree.attributes -> t -> t
+  val lazy_ :  ?attrs:Ppxlib.attributes -> t -> t
 
   val choice :
-      (unit -> Parsetree.expression) -> (unit -> Parsetree.pattern) -> t
+      (unit -> Ppxlib.expression) -> (unit -> Ppxlib.pattern) -> t
 
-  val of_payload : Parsetree.payload -> t
+  val of_payload : Ppxlib.payload -> t
 
-  val to_payload : t -> Parsetree.payload
+  val to_payload : t -> Ppxlib.payload
 end
 
 module type ValueS = sig
   include BaseValueS
 
-  val of_int : ?attrs:Parsetree.attributes -> int -> t
+  val of_int : ?attrs:Ppxlib.attributes -> int -> t
 
-  val of_string : ?attrs:Parsetree.attributes -> string -> t
+  val of_string : ?attrs:Ppxlib.attributes -> string -> t
 
-  val of_char : ?attrs:Parsetree.attributes -> char -> t
+  val of_char : ?attrs:Ppxlib.attributes -> char -> t
 
-  val of_unit : ?attrs:Parsetree.attributes -> unit -> t
+  val of_unit : ?attrs:Ppxlib.attributes -> unit -> t
 
-  val of_bool : ?attrs:Parsetree.attributes -> bool -> t
+  val of_bool : ?attrs:Ppxlib.attributes -> bool -> t
 
-  val of_float : ?attrs:Parsetree.attributes -> float -> t
+  val of_float : ?attrs:Ppxlib.attributes -> float -> t
 
-  val of_int32 : ?attrs:Parsetree.attributes -> int32 -> t
+  val of_int32 : ?attrs:Ppxlib.attributes -> int32 -> t
 
-  val of_int64 : ?attrs:Parsetree.attributes -> int64 -> t
+  val of_int64 : ?attrs:Ppxlib.attributes -> int64 -> t
 
-  val of_nativeint : ?attrs:Parsetree.attributes -> nativeint -> t
+  val of_nativeint : ?attrs:Ppxlib.attributes -> nativeint -> t
 
-  val none : ?attrs:Parsetree.attributes -> unit -> t
+  val none : ?attrs:Ppxlib.attributes -> unit -> t
 
-  val some : ?attrs:Parsetree.attributes -> t -> t
+  val some : ?attrs:Ppxlib.attributes -> t -> t
 
-  val option : ?attrs:Parsetree.attributes -> t option -> t
+  val option : ?attrs:Ppxlib.attributes -> t option -> t
 
   val of_longident : Longident.t -> t
 
-  val construct : ?attrs:Parsetree.attributes -> Longident.t -> t list -> t
+  val construct : ?attrs:Ppxlib.attributes -> Longident.t -> t list -> t
 
-  val tuple : ?attrs:Parsetree.attributes -> t list -> t
+  val tuple : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val nil : ?attrs:Parsetree.attributes -> ?prefix:Longident.t -> unit -> t
+  val nil : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> unit -> t
 
-  val cons : ?attrs:Parsetree.attributes -> ?prefix:Longident.t -> t -> t -> t
+  val cons : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t -> t -> t
 
   val list :
-      ?attrs:Parsetree.attributes -> ?prefix:Longident.t -> t list -> t
+      ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t list -> t
 end
 
 let unit_ctor = "()"
@@ -564,28 +518,28 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
   include Base
 
   let of_int ?attrs i =
-    of_constant ?attrs (Ast_helper.Const.int i)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.int i)
 
   let of_string ?attrs s =
-    of_constant ?attrs (Ast_helper.Const.string s)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.string s)
 
   let of_char ?attrs s =
-    of_constant ?attrs (Ast_helper.Const.char s)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.char s)
 
   let of_unit ?attrs () =
     force_construct ?attrs (mkloc (Longident.Lident unit_ctor)) None
 
   let of_float ?attrs f =
-    of_constant ?attrs (Ast_helper.Const.float (string_of_float f))
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.float (string_of_float f))
 
   let of_int32 ?attrs i =
-    of_constant ?attrs (Ast_helper.Const.int32 i)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.int32 i)
 
   let of_int64 ?attrs i =
-    of_constant ?attrs (Ast_helper.Const.int64 i)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.int64 i)
 
   let of_nativeint ?attrs i =
-    of_constant ?attrs (Ast_helper.Const.nativeint i)
+    of_constant ?attrs (Ppxlib.Ast_helper.Const.nativeint i)
 
   let tuple ?attrs (args : t list) : t =
     match args with
@@ -639,182 +593,170 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
 end
 
 module Exp = struct
-  let ident ?loc ?attrs (ident : Longident.t) : Parsetree.expression =
-    Ast_helper.Exp.ident ?loc ?attrs (mkloc ident)
+  let ident ?loc ?attrs (ident : Longident.t) : Ppxlib.expression =
+    Ppxlib.Ast_helper.Exp.ident ?loc ?attrs (mkloc ident)
 
-  let ident_of_str ?attrs (str : Ast_helper.str) : Parsetree.expression =
+  let ident_of_str ?attrs (str : Ppxlib.Ast_helper.str) : Ppxlib.expression =
     ident ?attrs ~loc:str.loc (Lident str.txt)
 
   include ExtendValue (struct
-    type t = Parsetree.expression
+    type t = Ppxlib.expression
 
-    let to_loc (e : Parsetree.expression) : Location.t =
+    let to_loc (e : Ppxlib.expression) : Location.t =
       e.pexp_loc
 
     let var ?attrs x =
       ident ?attrs (Lident x)
 
     let of_constant ?attrs cst =
-      Ast_helper.Exp.constant ?attrs cst
+      Ppxlib.Ast_helper.Exp.constant ?attrs cst
 
     let of_bytes ?attrs b =
       apply ?attrs (ident (Ldot (Lident "Bytes", "of_string")))
-        [of_constant (Ast_helper.Const.string (Bytes.to_string b))]
+        [of_constant (Ppxlib.Ast_helper.Const.string (Bytes.to_string b))]
 
     let force_tuple ?attrs (args : t list) : t =
-      Ast_helper.Exp.tuple ?attrs args
+      Ppxlib.Ast_helper.Exp.tuple ?attrs args
 
-    let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
-      Ast_helper.Exp.construct ?attrs lid args
+    let force_construct ?attrs (lid : Ppxlib.Ast_helper.lid) (args : t option) : t =
+      Ppxlib.Ast_helper.Exp.construct ?attrs lid args
 
     let array ?attrs (items : t list) : t =
-      Ast_helper.Exp.array ?attrs items
+      Ppxlib.Ast_helper.Exp.array ?attrs items
 
     let record ?attrs (fields : (Longident.t * t) list) : t =
-      Ast_helper.Exp.record ?attrs
+      Ppxlib.Ast_helper.Exp.record ?attrs
         (List.map (fun (field, value) -> (mkloc field, value)) fields)
         None
 
     let variant ?attrs (ctor : string) (arg : t option) : t =
-      Ast_helper.Exp.variant ?attrs ctor arg
+      Ppxlib.Ast_helper.Exp.variant ?attrs ctor arg
 
     let lazy_ ?attrs (arg : t) : t =
-      Ast_helper.Exp.lazy_ ?attrs arg
+      Ppxlib.Ast_helper.Exp.lazy_ ?attrs arg
 
-    let choice (e : unit -> Parsetree.expression)
-        (_p : unit ->Parsetree.pattern) : t =
+    let choice (e : unit -> Ppxlib.expression)
+        (_p : unit ->Ppxlib.pattern) : t =
       e ()
 
-    let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-      get = (fun { expr; _ } -> expr);
-      set = (fun expr iterator -> { iterator with expr })
-    }
+    let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+      iter#expression
 
-    let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-      get = (fun { expr; _ } -> expr);
-      set = (fun expr mapper -> { mapper with expr })
-    }
+    let map (map : #Ppxlib.Ast_traverse.map) : t map =
+      map#expression
 
-    let extension ?attrs (e : Parsetree.extension) =
-      Ast_helper.Exp.extension ?attrs e
+    let extension ?attrs (e : Ppxlib.extension) =
+      Ppxlib.Ast_helper.Exp.extension ?attrs e
 
-    let destruct_extension (e : Parsetree.expression)
+    let destruct_extension (e : Ppxlib.expression)
         : destruct_extension option =
       match e.pexp_desc with
       | Pexp_extension extension -> Some (extension, e.pexp_attributes)
       | _ -> None
 
-    let of_payload (payload : Parsetree.payload) : Parsetree.expression =
+    let of_payload (payload : Ppxlib.payload) : Ppxlib.expression =
       match payload with
       | PStr [{ pstr_desc = Pstr_eval (expr, []); _ }] ->
           expr
       | _ ->
-          Location.raise_errorf ~loc:!Ast_helper.default_loc
+          Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc
             "Expression expected"
 
-    let to_payload (e : Parsetree.expression) : Parsetree.payload =
+    let to_payload (e : Ppxlib.expression) : Ppxlib.payload =
       PStr (structure_of_expression e)
   end)
 end
 
 module Typ = struct
-  type t = Parsetree.core_type
+  type t = Ppxlib.core_type
 
-  let to_loc (ty : Parsetree.core_type) : Location.t =
+  let to_loc (ty : Ppxlib.core_type) : Location.t =
     ty.ptyp_loc
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { typ; _ } -> typ);
-    set = (fun typ iterator -> { iterator with typ })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#core_type
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { typ; _ } -> typ);
-    set = (fun typ mapper -> { mapper with typ })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#core_type
 
-  let extension ?attrs (e : Parsetree.extension) : t =
-    Ast_helper.Typ.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) : t =
+    Ppxlib.Ast_helper.Typ.extension ?attrs e
 
-  let destruct_extension (ty : Parsetree.core_type)
+  let destruct_extension (ty : Ppxlib.core_type)
       : destruct_extension option =
     match ty.ptyp_desc with
     | Ptyp_extension e -> Some (e, ty.ptyp_attributes)
     | _ -> None
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.core_type =
+  let of_payload (payload : Ppxlib.payload) : Ppxlib.core_type =
     match payload with
     | PTyp typ -> typ
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc "Type expected"
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc "Type expected"
 
-  let to_payload (typ : Parsetree.core_type) : Parsetree.payload =
+  let to_payload (typ : Ppxlib.core_type) : Ppxlib.payload =
     PTyp typ
 end
 
 module Pat = ExtendValue (struct
-  type t = Parsetree.pattern
+  type t = Ppxlib.pattern
 
-  let to_loc (p : Parsetree.pattern) : Location.t =
+  let to_loc (p : Ppxlib.pattern) : Location.t =
     p.ppat_loc
 
   let var ?attrs x =
-    Ast_helper.Pat.var ?attrs (mkloc x)
+    Ppxlib.Ast_helper.Pat.var ?attrs (mkloc x)
 
   let of_constant ?attrs cst =
-    Ast_helper.Pat.constant ?attrs cst
+    Ppxlib.Ast_helper.Pat.constant ?attrs cst
 
   let of_bytes ?attrs:_ _b =
     failwith "Pat.of_bytes: bytes cannot be turned into patterns"
 
   let force_tuple ?attrs (args : t list) : t =
-    Ast_helper.Pat.tuple ?attrs args
+    Ppxlib.Ast_helper.Pat.tuple ?attrs args
 
-  let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
-    Ast_helper.Pat.construct ?attrs lid args
+  let force_construct ?attrs (lid : Ppxlib.Ast_helper.lid) (args : t option) : t =
+    Ppxlib.Ast_helper.Pat.construct ?attrs lid args
 
   let record ?attrs (fields : (Longident.t * t) list) : t =
-    Ast_helper.Pat.record ?attrs
+    Ppxlib.Ast_helper.Pat.record ?attrs
       (List.map (fun (field, value) -> (mkloc field, value)) fields)
       Closed
 
   let array ?attrs (items : t list) : t =
-    Ast_helper.Pat.array ?attrs items
+    Ppxlib.Ast_helper.Pat.array ?attrs items
 
   let variant ?attrs (ctor : string) (arg : t option) : t =
-    Ast_helper.Pat.variant ?attrs ctor arg
+    Ppxlib.Ast_helper.Pat.variant ?attrs ctor arg
 
   let lazy_ ?attrs (arg : t) : t =
-    Ast_helper.Pat.lazy_ ?attrs arg
+    Ppxlib.Ast_helper.Pat.lazy_ ?attrs arg
 
-  let choice (_e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
+  let choice (_e : unit -> Ppxlib.expression) (p : unit -> Ppxlib.pattern)
       : t =
     p ()
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = (fun { pat; _ } -> pat);
-    set = (fun pat iterator -> { iterator with pat })
-  }
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    iter#pattern
 
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = (fun { pat; _ } -> pat);
-    set = (fun pat mapper -> { mapper with pat })
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    map#pattern
 
-  let extension ?attrs (e : Parsetree.extension) =
-    Ast_helper.Pat.extension ?attrs e
+  let extension ?attrs (e : Ppxlib.extension) =
+    Ppxlib.Ast_helper.Pat.extension ?attrs e
 
-  let destruct_extension (e : Parsetree.pattern) : destruct_extension option =
+  let destruct_extension (e : Ppxlib.pattern) : destruct_extension option =
     match e.ppat_desc with
     | Ppat_extension extension -> Some (extension, e.ppat_attributes)
     | _ -> None
 
-  let of_payload (payload : Parsetree.payload) : Parsetree.pattern =
+  let of_payload (payload : Ppxlib.payload) : Ppxlib.pattern =
     match payload with
     | PPat (pat, None) -> pat
     | _ ->
-        Location.raise_errorf ~loc:!Ast_helper.default_loc "Pattern expected"
-  let to_payload (pat : Parsetree.pattern) : Parsetree.payload =
+        Location.raise_errorf ~loc:!Ppxlib.Ast_helper.default_loc "Pattern expected"
+  let to_payload (pat : Ppxlib.pattern) : Ppxlib.payload =
     PPat (pat, None)
 end)
 
@@ -822,7 +764,7 @@ module Value : ValueS with type t = value = ExtendValue (struct
   type t = value
 
   let rec split (l : value list)
-      : Parsetree.expression list * Parsetree.pattern list =
+      : Ppxlib.expression list * Ppxlib.pattern list =
     match l with
     | [] -> ([], [])
     | hd :: tl ->
@@ -830,13 +772,13 @@ module Value : ValueS with type t = value = ExtendValue (struct
         (hd.exp :: tl_exp, hd.pat :: tl_pat)
 
   let split_option (o : value option)
-      : Parsetree.expression option * Parsetree.pattern option =
+      : Ppxlib.expression option * Ppxlib.pattern option =
       match o with
       | None -> (None, None)
       | Some { exp; pat } -> (Some exp, Some pat)
 
   let rec split_assoc (l : ('a * value) list)
-      : ('a * Parsetree.expression) list * ('a * Parsetree.pattern) list =
+      : ('a * Ppxlib.expression) list * ('a * Ppxlib.pattern) list =
     match l with
     | [] -> ([], [])
     | (key, hd) :: tl ->
@@ -860,7 +802,7 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.force_tuple ?attrs args_exp;
       pat = Pat.force_tuple ?attrs args_pat; }
 
-  let force_construct ?attrs (lid : Ast_helper.lid) (args : t option) : t =
+  let force_construct ?attrs (lid : Ppxlib.Ast_helper.lid) (args : t option) : t =
     let args_exp, args_pat = split_option args in
     { exp = Exp.force_construct ?attrs lid args_exp;
       pat = Pat.force_construct ?attrs lid args_pat; }
@@ -884,28 +826,18 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.lazy_ ?attrs arg.exp;
       pat = Pat.lazy_ ?attrs arg.pat; }
 
-  let choice (e : unit -> Parsetree.expression) (p : unit -> Parsetree.pattern)
+  let choice (e : unit -> Ppxlib.expression) (p : unit -> Ppxlib.pattern)
       : t =
     { exp = e ();
       pat = p (); }
 
-  let no_iterator _ =
-    failwith "value cannot be iterated"
+  let iter (iter : #Ppxlib.Ast_traverse.iter) : t iter =
+    failwith "no iterator"
 
-  let iterator : (Ast_iterator.iterator, t iterator_item) accessor = {
-    get = no_iterator;
-    set = (fun _ -> no_iterator)
-  }
+  let map (map : #Ppxlib.Ast_traverse.map) : t map =
+    failwith "no mapper"
 
-  let no_mapper _ =
-    failwith "value cannot be mapped"
-
-  let mapper : (Ast_mapper.mapper, t mapper_item) accessor = {
-    get = no_mapper;
-    set = (fun _ -> no_mapper)
-  }
-
-  let extension ?attrs (e : Parsetree.extension) : t =
+  let extension ?attrs (e : Ppxlib.extension) : t =
     { exp = Exp.extension ?attrs e;
       pat = Pat.extension ?attrs e; }
 
@@ -915,34 +847,34 @@ module Value : ValueS with type t = value = ExtendValue (struct
   let of_payload _ =
     failwith "value cannot be obtained from payload"
 
-  let to_payload (v : value) : Parsetree.payload =
+  let to_payload (v : value) : Ppxlib.payload =
     Exp.to_payload v.exp
 end)
 
 (** {1 Payload extraction} *)
 
-let int_of_payload (payload : Parsetree.payload) : int =
+let int_of_payload (payload : Ppxlib.payload) : int =
   int_of_expression (Exp.of_payload payload)
 
-let string_of_payload (payload : Parsetree.payload) : string =
+let string_of_payload (payload : Ppxlib.payload) : string =
   string_of_expression (Exp.of_payload payload)
 
-let bool_of_payload (payload : Parsetree.payload) : bool =
+let bool_of_payload (payload : Ppxlib.payload) : bool =
   bool_of_expression (Exp.of_payload payload)
 
 (** {1 Payload construction (ctd) *)
 
-let payload_of_int (i : int) : Parsetree.payload =
+let payload_of_int (i : int) : Ppxlib.payload =
   Exp.to_payload (Exp.of_int i)
 
 (** {1 Coercions (ctd)} *)
 
-let sequence (list : Parsetree.expression list) : Parsetree.expression =
+let sequence (list : Ppxlib.expression list) : Ppxlib.expression =
   match list with
   | [] -> Exp.of_unit ()
   | [singleton] -> singleton
   | hd :: tl ->
-      List.fold_left Ast_helper.Exp.sequence hd tl
+      List.fold_left Ppxlib.Ast_helper.Exp.sequence hd tl
 
 (** {1 General purpose functions} *)
 

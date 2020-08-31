@@ -4,10 +4,10 @@
 
 let () =
   Test_framework.assert_eq Int.equal Format.pp_print_int
-    [%meta Metapp.filter.expr Metapp.filter
+    [%meta (new Metapp.filter)#expression
        [%e (1, 2 [@if false])]] 1
 
-[%%meta Metapp.filter.structure_item Metapp.filter
+[%%meta (new Metapp.filter)#structure_item
   [%stri let a = 1 and[@if false] b = c]]
 
 let () =

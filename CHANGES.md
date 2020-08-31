@@ -1,5 +1,7 @@
 # Version 0.3.0, in development
 
+- Port to ppxlib 0.16 / ocaml-migrate-parsetree 2.0.0
+
 - `Metapp.ExtensibleS.destruct_extension` returns a pair `Some (e, attrs)` where
   `e` is the extension and `attrs` is the list of optional attributes.
 
