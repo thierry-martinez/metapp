@@ -1,6 +1,7 @@
 (library
   (name metapp_ppx)
   (public_name metapp.ppx)
+  (preprocess (pps ppxlib.metaquot))
   (kind ppx_rewriter)
 ; +warning 32: Unused value declaration.
 ; +warning 34: Unused type declaration.

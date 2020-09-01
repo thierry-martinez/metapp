@@ -424,7 +424,7 @@ module rec ArrayQuotation : sig
       fill : unit -> 'a;
     }
 
-  type 'a t = 'a quotation array
+  type 'a t = (unit -> 'a quotation) array
 end = struct
   include ArrayQuotation
 end

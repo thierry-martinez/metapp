@@ -70,12 +70,12 @@ let get_expression (instruction : instruction)
         "Definitions are only allowed at top-level"
 
 module rec AccuTypes : sig
-  type escape = {
+  type 'a escape = {
       instructions : instruction list;
-      context : Metapp_api.context;
+      quotation : unit -> 'a Metapp_api.ArrayQuotation.quotation;
     }
 
-  type 'a quotations = ((unit -> 'a) * escape) Metapp_preutils.Accu.t ref
+  type 'a quotations = 'a escape Metapp_preutils.Accu.t ref
 
   type 'a metapoints = Location.t Metapp_preutils.Accu.t ref
 end = struct
@@ -192,8 +192,7 @@ let unmut_subquotations (context : MutableQuotations.t)
         type 'a y = 'a Metapp_api.ArrayQuotation.t
 
         let map accu = Array.map
-            (fun (fill, { AccuTypes.context; _ }) ->
-              ({ context; fill } : 'a Metapp_api.ArrayQuotation.quotation))
+            (fun quotation -> quotation.AccuTypes.quotation)
             (Metapp_preutils.Accu.to_array !accu)
       end) in
   Map.map context
@@ -267,28 +266,29 @@ let rec extract_subquotations (quotations : MutableQuotations.t) :
         let module Map = (val map_module : Map) in
         let map = new Map.map in
         let quotation = M.map map quotation in
-        let escape = k () in
-        let fill () =
-          let map = replace_metapoints escape.context.metapoints in
-          M.map map quotation in
+        let escape : 'a AccuTypes.escape = k () in
+        let quote () =
+          let quotation' = escape.quotation () in
+          let fill () =
+            let map = replace_metapoints quotation'.context.metapoints in
+            M.map map quotation in
+          { quotation' with fill } in
         let index =
-          Metapp_preutils.update (Metapp_preutils.Accu.add (fill, escape))
+          Metapp_preutils.update
+            (Metapp_preutils.Accu.add { escape with quotation = quote})
             (Quotation.get quotations) in
+        let loc = !Ast_helper.default_loc in
         let field_name = Name.get Metapp_api.quotation_name in
-        Ppxlib.Ast_helper.Exp.let_ Nonrecursive
-          [Ppxlib.Ast_helper.Vb.mk (Metapp_preutils.Pat.record [
-             (Ldot (Ldot (metapp_api, "ArrayQuotation"), "context"),
-               Metapp_preutils.Pat.var context_var);
-               (Lident "fill", Metapp_preutils.Pat.var fill_var)])
-            (array_get
-              (field_get (context_get subquotations_field) field_name) index)]
-          (Metapp_preutils.sequence
+        [%expr let
+            { Metapp_api.ArrayQuotation.context = __context; fill = __fill } =
+          ([%e field_get (context_get subquotations_field) field_name]).(
+          [%e Metapp_preutils.Exp.of_int index]) () in
+          [%e (Metapp_preutils.sequence
             (List.map get_expression escape.instructions @
-              [Metapp_preutils.apply (Metapp_preutils.Exp.var fill_var)
-                [Metapp_preutils.Exp.of_unit ()]]))
+              [[%expr __fill ()]]))]]
 end
 
-and extract_metapoints () : (module Map) * (unit -> AccuTypes.escape) =
+and extract_metapoints () : (module Map) * (unit -> unit AccuTypes.escape) =
   let accu = ref [] in
   let metapoints = MutableMetapoints.make () in
   let subquotations = MutableQuotations.make () in
@@ -345,12 +345,14 @@ and extract_metapoints () : (module Map) * (unit -> AccuTypes.escape) =
         M.map super#signature_item
     end
   end in
-  let k () : AccuTypes.escape = {
+  let k () : unit AccuTypes.escape = {
     instructions = List.rev !accu;
-    context = {
-      metapoints = unmut_metapoints metapoints;
-      loc = unmut_loc metapoints;
-      subquotations = unmut_subquotations subquotations; }} in
+    quotation = fun () -> {
+      fill = (fun () -> ());
+      context = {
+        metapoints = unmut_metapoints metapoints;
+        loc = unmut_loc metapoints;
+        subquotations = unmut_subquotations subquotations; }}} in
   ((module Map), k)
 
 let transform (root_mapper : Ppxlib.structure Metapp_preutils.map)
@@ -382,7 +384,8 @@ let transform (root_mapper : Ppxlib.structure Metapp_preutils.map)
   let s = get_mapper map s in
   match k () with
   | { instructions = []; _ } -> s
-  | { instructions; context } ->
+  | { instructions; quotation } ->
+  match quotation () with { context; _ } ->
   let initial_parsetree =
     [Ppxlib.Ast_helper.Str.value Nonrecursive
       [Ppxlib.Ast_helper.Vb.mk (Metapp_preutils.Pat.var context_var)
