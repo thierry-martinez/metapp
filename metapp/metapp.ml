@@ -558,9 +558,14 @@ end
 module Types = struct
   (** {1 Signature type destruction} *)
 
-  type visibility = Types.visibility =
-    | Exported
-    | Hidden
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%stri
+    type visibility = Types.visibility =
+      | Exported
+      | Hidden]
+  else [%stri
+    type visibility =
+      | Exported
+      | Hidden]]
 
   module Sigi = struct
     type sig_type = {
@@ -571,31 +576,60 @@ module Types = struct
       }
 
     let sig_type (sig_type : sig_type) : Types.signature_item =
-      Sig_type (
-      sig_type.id, sig_type.decl, sig_type.rec_status, sig_type.visibility)
+      [%meta if Sys.ocaml_version >= "4.08.0" then [%expr
+        Sig_type (
+          sig_type.id, sig_type.decl, sig_type.rec_status, sig_type.visibility)]
+      else [%expr
+        Sig_type (
+          sig_type.id, sig_type.decl, sig_type.rec_status)]]
 
     let destruct_sig_type (item : Types.signature_item) : sig_type option =
-      match item with
-      | Sig_type (id, decl, rec_status, visibility) ->
-          Some { id; decl; rec_status; visibility }
-      | _ -> None
+      [%meta if Sys.ocaml_version >= "4.08.0" then [%expr
+        match item with
+        | Sig_type (id, decl, rec_status, visibility) ->
+            Some { id; decl; rec_status; visibility }
+        | _ -> None]
+      else [%expr
+        match item with
+        | Sig_type (id, decl, rec_status) ->
+            Some { id; decl; rec_status; visibility = Exported }
+        | _ -> None]]
   end
 
   (** {1 Module types in Types} *)
 
-  type functor_parameter = Types.functor_parameter =
-    | Unit
-    | Named of Ident.t option * Types.module_type
+  [%%meta Metapp_preutils.Stri.of_list (
+  if Sys.ocaml_version >= "4.10.0" then [%str
+    type functor_parameter = Types.functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]
+  else [%str
+    type functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type
 
-  let _construct_functor_parameter x t =
-    match t with
-    | None -> Unit
-    | Some t -> Named (Option.some x, t)
+    let construct_functor_parameter x t =
+      match t with
+      | None -> Unit
+      | Some t -> Named (Option.some x, t)
+
+    let destruct_functor_parameter p =
+      match p with
+      | Unit -> Ident.create_persistent "", None
+      | Named (ident_opt, t) ->
+          match ident_opt with
+          | None -> invalid_arg _anonymous_module_unsupported
+          | Some ident -> ident, Some t
+  ])]
 
   module Mty = struct
     let functor_ (parameter : functor_parameter)
         (body : Types.module_type) : Types.module_type =
-      Mty_functor (parameter, body)
+      [%meta if Sys.ocaml_version >= "4.10.0" then
+        [%e Mty_functor (parameter, body)]
+      else [%e
+        let x, t = destruct_functor_parameter parameter in
+        Mty_functor (x, t, body)]]
 
     let destruct_functor (modtype : Types.module_type)
         : (functor_parameter * Types.module_type) option =
@@ -607,7 +641,7 @@ module Types = struct
           [%meta if Sys.ocaml_version >= "4.10.0" then
             [%e Some (f, s)]
           else
-            [%e Some (_construct_functor_parameter x t, s)]]
+            [%e Some (construct_functor_parameter x t, s)]]
       | _ -> None
 
     let destruct_alias (modtype : Types.module_type) : Path.t option =

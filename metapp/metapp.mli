@@ -191,9 +191,14 @@ module Mty : ModS with type t = Ppxlib.module_type
 module Types : sig
   (** {1 Signature type destruction} *)
 
-  type visibility = Types.visibility =
-    | Exported
-    | Hidden
+  [%%meta if Sys.ocaml_version >= "4.08.0" then [%sigi:
+    type visibility = Types.visibility =
+      | Exported
+      | Hidden]
+  else [%sigi:
+    type visibility =
+      | Exported
+      | Hidden]]
 
   module Sigi : sig
     type sig_type = {
@@ -211,9 +216,14 @@ module Types : sig
 
   (** {1 Module types in Types} *)
 
-  type functor_parameter = Types.functor_parameter =
-    | Unit
-    | Named of Ident.t option * Types.module_type
+  [%%meta if Sys.ocaml_version >= "4.10.0" then [%sigi:
+    type functor_parameter = Types.functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]
+  else [%sigi:
+    type functor_parameter =
+      | Unit
+      | Named of Ident.t option * Types.module_type]]
 
   module Mty : sig
     val functor_ : functor_parameter -> Types.module_type -> Types.module_type
