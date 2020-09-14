@@ -413,8 +413,12 @@ let transform (root_mapper : Ppxlib.structure Metapp_preutils.map)
       Findlib_for_ppx.load_packages ~debug:options.debug_findlib
         options.packages;
     end;
-  Dyncompile.compile_and_load options
-    (Ppxlib.Selected_ast.To_ocaml.copy_structure parsetree);
+  begin try
+    Dyncompile.compile_and_load options
+      (Ppxlib.Selected_ast.To_ocaml.copy_structure parsetree);
+  with Dynlink.Error error ->
+    Location.raise_errorf "%s" (Dynlink.error_message error)
+  end;
   let mapper = replace_metapoints context.metapoints in
   get_mapper mapper s
 
