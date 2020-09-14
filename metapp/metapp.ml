@@ -555,6 +555,9 @@ module Mty = struct
     | _ -> None
 end
 
+let _anonymous_module_unsupported =
+  "Anonymous modules are not supported with OCaml <4.10.0"
+
 module Types = struct
   (** {1 Signature type destruction} *)
 
