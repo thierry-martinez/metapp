@@ -112,7 +112,7 @@ module Metapoint_mapper (Mapper : MetapointsMapperS) = struct
   module Mapper' (Metapoint : Metapp_api.MetapointS) = struct
     let map (super : Metapoint.t Metapp_preutils.map)
         (m : Metapoint.t) : Metapoint.t =
-      Ast_helper.with_default_loc (Metapoint.to_loc m) @@ fun () ->
+      Ppxlib.Ast_helper.with_default_loc (Metapoint.to_loc m) @@ fun () ->
         match Metapoint.destruct_extension m with
         | Some (({ txt = "meta"; _ }, payload), _) ->
             let module Map = Mapper (Metapoint) in
@@ -277,7 +277,7 @@ let rec extract_subquotations (quotations : MutableQuotations.t) :
           Metapp_preutils.update
             (Metapp_preutils.Accu.add { escape with quotation = quote})
             (Quotation.get quotations) in
-        let loc = !Ast_helper.default_loc in
+        let loc = !Ppxlib.Ast_helper.default_loc in
         let field_name = Name.get Metapp_api.quotation_name in
         [%expr let
             { Metapp_api.ArrayQuotation.context = __context; fill = __fill } =
@@ -298,6 +298,7 @@ and extract_metapoints () : (module Map) * (unit -> unit AccuTypes.escape) =
     module Name = Metapoint.MetapointAccessor (Metapp_api.MetapointName)
     let map (payload : Ppxlib.payload) : Metapoint.t =
       let e = Metapp_preutils.Exp.of_payload payload in
+      Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
       let extracted_expr = map_subquotations#expression e in
       let index =
         Metapp_preutils.update
@@ -305,15 +306,11 @@ and extract_metapoints () : (module Map) * (unit -> unit AccuTypes.escape) =
           (Accessor.get metapoints) in
       let field = Name.get Metapp_api.metapoint_name in
       let metapoint_field = field_get (context_get metapoints_field) field in
-      let extracted_expr =
-        Metapp_preutils.Exp.some
-          (Metapp_preutils.apply
-            (Metapp_preutils.Exp.ident
-              (Ldot (Lident "Ast_helper", "with_default_loc")))
-            [array_get (field_get (context_get loc_field) field) index;
-              Ppxlib.Ast_helper.Exp.function_
-                [Ppxlib.Ast_helper.Exp.case (Metapp_preutils.Pat.of_unit ())
-                  extracted_expr]]) in
+        let loc = !Ppxlib.Ast_helper.default_loc in
+      let extracted_expr : Ppxlib.expression =
+        [%expr Some (Ppxlib.Ast_helper.with_default_loc
+            [%e array_get (field_get (context_get loc_field) field) index]
+            (function () -> [%e extracted_expr]))] in
       accu |> Metapp_preutils.mutate (List.cons
         (Expression (array_set metapoint_field index extracted_expr)));
       Metapoint.extension (extension_of_index index)
