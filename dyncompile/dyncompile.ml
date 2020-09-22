@@ -23,6 +23,22 @@ let compiler : compiler =
     archive_suffix = ".cma";
   }
 
+let rec try_commands ~verbose list =
+  match list with
+  | [] -> assert false
+  | (command, args) :: tl ->
+      let command_line = Filename.quote_command command args in
+      if verbose then
+        prerr_endline command_line;
+      match Sys.command command_line with
+      | 0 -> ()
+      | 127 when tl <> [] -> try_commands ~verbose tl
+      | exit_code ->
+          Location.raise_errorf ~loc:!Ast_helper.default_loc
+            "@[Unable@ to@ compile@ preprocessor:@ command-line@ \"%s\"@ \
+              failed@ with@ exit-code@ %d@]@."
+            (String.escaped command_line) exit_code
+
 let compile (options : Options.t) (source_filename : string)
     (object_filename : string) : unit =
   let flags =
@@ -52,20 +68,7 @@ let compile (options : Options.t) (source_filename : string)
         [("ocamlfind",
           [compiler.command; "-package"; String.concat "," packages] @
           flags)] in
-  let rec try_commands list =
-    match list with
-    | [] -> assert false
-    | (command, args) :: tl ->
-        let command_line = Filename.quote_command command args in
-        match Sys.command command_line with
-        | 0 -> ()
-        | 127 when tl <> [] -> try_commands tl
-        | exit_code ->
-            Location.raise_errorf ~loc:!Ast_helper.default_loc
-              "@[Unable@ to@ compile@ preprocessor:@ command-line@ \"%s\"@ \
-                failed@ with@ exit-code@ %d@]@."
-              (String.escaped command_line) exit_code in
-  try_commands commands
+  try_commands ~verbose:options.verbose commands
 
 (* Code taken from pparse.ml (adapted for a channel instead of a filename to use
    open_temp_file), because Pparse.write_ast is introduced in OCaml 4.04.0. *)

@@ -4,6 +4,7 @@ type t = {
     flags : string list;
     plainsource : bool;
     debug_findlib : bool;
+    verbose : bool;
   }
 
 let empty = {
@@ -12,6 +13,7 @@ let empty = {
   flags = [];
   plainsource = false;
   debug_findlib = false;
+  verbose = true;
 }
 
 let rev options =
@@ -37,3 +39,6 @@ let set_plainsource plainsource options =
 
 let set_debug_findlib debug_findlib options =
   { options with debug_findlib }
+
+let set_verbose verbose options =
+  { options with verbose }

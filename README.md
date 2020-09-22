@@ -112,3 +112,6 @@ compiling the meta-code.
 
 [#3214]: https://github.com/ocaml/dune/issues/3214
 [see discussion]: https://discuss.ocaml.org
+
+Compilation commands can be logged by adding `[%%metaverbose]` to the
+preprocessed file.

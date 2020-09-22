@@ -90,7 +90,8 @@ val nolabels : 'a list -> (Ppxlib.Asttypes.arg_label * 'a) list
 val apply :
     ?attrs : Ppxlib.attributes -> Ppxlib.expression ->
       ?labels : (string * Ppxlib.expression) list ->
-        Ppxlib.expression list -> Ppxlib.expression
+        ?optional : (string * Ppxlib.expression) list ->
+          Ppxlib.expression list -> Ppxlib.expression
 
 (** {1 Generic signature for visitable nodes} *)
 

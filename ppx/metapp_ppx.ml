@@ -54,6 +54,7 @@ module Options = struct
     | "metaflag" -> Some (add_flags (string_list_of_payload payload))
     | "metaplainsource" -> Some (set_plainsource true)
     | "metadebug_findlib" -> Some (set_debug_findlib true)
+    | "metaverbose" -> Some (set_verbose true)
     | _ -> None
 end
 

@@ -114,10 +114,12 @@ let nolabels args =
 
 let apply ?attrs (f : Ppxlib.expression)
     ?(labels : (string * Ppxlib.expression) list = [])
+    ?(optional : (string * Ppxlib.expression) list = [])
     (args : Ppxlib.expression list) : Ppxlib.expression =
   Ppxlib.Ast_helper.Exp.apply ?attrs f
     (List.map (fun (l, e) -> (Ppxlib.Asttypes.Labelled l, e)) labels @
-      nolabels args)
+      List.map (fun (l, e) -> (Ppxlib.Asttypes.Optional l, e)) optional @
+        nolabels args)
 
 (** {1 Generic signature for visitable nodes} *)
 
