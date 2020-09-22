@@ -9,7 +9,7 @@
 
 - Add `?optional` argument to `Metapp.apply`
 
-- Add '[%%metaverbose]' for logging compilation commands.
+- Add `[%%metaverbose]` for logging compilation commands.
 
 # Version 0.2.0, 2020-05-11
 
