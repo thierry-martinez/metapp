@@ -13,7 +13,7 @@ let empty = {
   flags = [];
   plainsource = false;
   debug_findlib = false;
-  verbose = true;
+  verbose = false;
 }
 
 let rev options =
