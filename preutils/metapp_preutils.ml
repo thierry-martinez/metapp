@@ -16,7 +16,7 @@ let int_of_expression (e : Ppxlib.expression) : int =
 
 let destruct_string_constant (constant : Ppxlib.constant) : string option =
   match constant with
-  | Pconst_string (s, _) -> Some s
+  | Pconst_string (s, _, _) -> Some s
   | _ -> None
 
 let string_of_expression (expression : Ppxlib.expression) : string =

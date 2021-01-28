@@ -21,9 +21,9 @@ construction where ... stands for OCaml code evaluated at
 compile-time.
 ")
  (depends
-  (ocaml (and (>= 4.08.0) (< 4.12.0)))
+  (ocaml (>= 4.08.0))
   (stdcompat (>= 12))
-  (ppxlib (>= 0.16.0))
+  (ppxlib (>= 0.18.0))
   (ocamlfind (>= 1.8.1))
   (dune (>= 1.11.0))
   (odoc (and :with-doc (>= 1.5.1)))))

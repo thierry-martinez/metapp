@@ -18,8 +18,8 @@ type string_constant = {
 let destruct_string_constant (constant : Ppxlib.constant)
     : string_constant option =
   match constant with
-  | Pconst_string (s, delim) ->
-      Some { s; loc = !Ast_helper.default_loc; delim }
+  | Pconst_string (s, loc, delim) ->
+      Some { s; loc; delim }
   | _ -> None
 
 let string_of_expression (expression : Ppxlib.expression) : string_constant =
