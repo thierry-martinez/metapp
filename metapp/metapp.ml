@@ -666,15 +666,14 @@ module Types = struct
       | Variant_regular
       | Variant_unboxed]]
 
-  let destruct_type_variant (type_kind : ('lbl, 'cstr) Types.type_kind) :
-    ('cstr list * variant_representation) option =
+  let destruct_type_variant type_kind =
     [%meta if Sys.ocaml_version >= "4.13.0" then [%e
       match type_kind with
-      | Type_variant (list, repr) -> Some (list, repr)
+      | Types.Type_variant (list, repr) -> Some (list, repr)
       | _ -> None]
     else [%e
       match type_kind with
-      | Type_variant list -> Some (list, Variant_unboxed)
+      | Types.Type_variant list -> Some (list, Variant_unboxed)
       | _ -> None]]
 end
 
