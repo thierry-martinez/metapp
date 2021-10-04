@@ -1,3 +1,9 @@
+# Version 0.4.1, 2021-10-04
+
+- Add `Metapp.Types.destruct_type_variant`: returns a pair `Some (ctors, repr)`
+  if a `Types.type_kind` is a `Type_variant`, for compatibility between OCaml 4.13
+  and older versions of OCaml.
+
 # Version 0.4.0, 2021-02-19
 
 - Port to ppxlib 0.18 and OCaml 4.12 (by kit-ty-kate, #2)

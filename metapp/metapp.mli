@@ -234,6 +234,21 @@ module Types : sig
 
     val destruct_alias : Types.module_type -> Path.t option
   end
+
+  [%%meta if Sys.ocaml_version >= "4.13.0" then [%sigi:
+    type variant_representation = Types.variant_representation =
+      | Variant_regular
+      | Variant_unboxed]
+  else [%sigi:
+    type variant_representation =
+      | Variant_regular
+      | Variant_unboxed]]
+
+  (** [destruct_type_variant type_kind] returns a pair [Some (ctors, repr)]
+    if [type_kind] is a [Type_variant], for compatibility between OCaml 4.13
+      and older versions of OCaml. *)
+  val destruct_type_variant : ('lbl, 'cstr) Types.type_kind ->
+    ('cstr list * variant_representation) option
 end
 
 (** {1 Generic signature for expressions and patterns} *)
