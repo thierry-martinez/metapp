@@ -10,7 +10,7 @@
 (homepage "https://github.com/thierry-martinez/metapp")
 (bug_reports "https://github.com/thierry-martinez/metapp")
 (documentation "https://github.com/thierry-martinez/metapp")
-(version "0.4.1")
+(version "0.4.2")
 
 (package
  (name metapp)

@@ -1,3 +1,9 @@
+# Version 0.4.2, 2021-10-08
+
+- Add `Metapp.Types.destruct_tpackage`: returns a pair `Some (path, list)`
+    if a `Types.type_desc` is a `Tpackage`, for compatibility between OCaml 4.13
+      and older versions of OCaml.
+
 # Version 0.4.1, 2021-10-04
 
 - Add `Metapp.Types.destruct_type_variant`: returns a pair `Some (ctors, repr)`

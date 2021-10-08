@@ -675,6 +675,16 @@ module Types = struct
       match type_kind with
       | Types.Type_variant list -> Some (list, Variant_unboxed)
       | _ -> None]]
+
+  let destruct_tpackage (type_desc : Types.type_desc) =
+    [%meta if Sys.ocaml_version >= "4.13.0" then [%e
+      match type_desc with
+      | Tpackage (path, list) -> Some (path, list)
+      | _ -> None]
+    else [%e
+      match type_desc with
+      | Tpackage (path, idl, tyl) -> Some (path, List.combine idl tyl)
+      | _ -> None]]
 end
 
 (** {1 With constraint} *)

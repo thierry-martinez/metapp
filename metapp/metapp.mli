@@ -253,6 +253,12 @@ module Types : sig
   else [%sigi:
     val destruct_type_variant : Types.type_kind ->
       (Types.constructor_declaration list * variant_representation) option]]
+
+  (** [destruct_tpackage type_desc] returns a pair [Some (path, list)]
+    if [type_desc] is a [Tpackage], for compatibility between OCaml 4.13
+      and older versions of OCaml. *)
+  val destruct_tpackage :
+    Types.type_desc -> (Path.t * (Longident.t * Types.type_expr) list) option
 end
 
 (** {1 Generic signature for expressions and patterns} *)
