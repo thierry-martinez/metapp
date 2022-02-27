@@ -685,6 +685,30 @@ module Types = struct
       match type_desc with
       | Tpackage (path, idl, tyl) -> Some (path, List.combine idl tyl)
       | _ -> None]]
+
+  let get_desc (type_expr : Types.type_expr) : Types.type_desc =
+    [%meta if Sys.ocaml_version >= "4.14.0" then [%e
+      Types.get_desc type_expr]
+    else [%e
+      type_expr.desc]]
+
+  let get_level (type_expr : Types.type_expr) : int =
+    [%meta if Sys.ocaml_version >= "4.14.0" then [%e
+      Types.get_level type_expr]
+    else [%e
+      type_expr.level]]
+
+  let get_scope (type_expr : Types.type_expr) : int =
+    [%meta if Sys.ocaml_version >= "4.14.0" then [%e
+      Types.get_scope type_expr]
+    else [%e
+      type_expr.scope]]
+
+  let get_id (type_expr : Types.type_expr) : int =
+    [%meta if Sys.ocaml_version >= "4.14.0" then [%e
+      Types.get_level type_expr]
+    else [%e
+      type_expr.id]]
 end
 
 (** {1 With constraint} *)

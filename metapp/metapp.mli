@@ -259,6 +259,18 @@ module Types : sig
       and older versions of OCaml. *)
   val destruct_tpackage :
     Types.type_desc -> (Path.t * (Longident.t * Types.type_expr) list) option
+
+  val get_desc : Types.type_expr -> Types.type_desc
+  (** Getter for [type_expr] introduced in OCaml 4.14 *)
+
+  val get_level : Types.type_expr -> int
+  (** Getter for [type_expr] introduced in OCaml 4.14 *)
+
+  val get_scope : Types.type_expr -> int
+  (** Getter for [type_expr] introduced in OCaml 4.14 *)
+
+  val get_id : Types.type_expr -> int
+  (** Getter for [type_expr] introduced in OCaml 4.14 *)
 end
 
 (** {1 Generic signature for expressions and patterns} *)

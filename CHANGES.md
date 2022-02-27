@@ -1,3 +1,8 @@
+# Next version
+
+- Add getters `Metapp.Types.get_{desc,level,scope,id}` since `Types.type_expr`
+  is abstract in OCaml 4.14.
+
 # Version 0.4.2, 2021-10-08
 
 - Add `Metapp.Types.destruct_tpackage`: returns a pair `Some (path, list)`
