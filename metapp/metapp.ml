@@ -319,7 +319,7 @@ class filter =
           | [singleton] -> singleton
           | args -> { p with ppat_desc = Ppat_tuple args }
           end
-      | Ppat_construct (lid, Some arg) ->
+      | Ppat_construct (lid, Some (_, arg)) ->
           if check_pat arg then
             p
           else

@@ -1,4 +1,9 @@
-# Version 0.4.3, 2022-03-21
+# Development version
+
+- Port to ppxlib 0.26.0
+  (suggested by @nilsbecker, https://github.com/thierry-martinez/ocaml-in-python/issues/1)
+
+# Versionx 0.4.3, 2022-03-21
 
 - Add getters `Metapp.Types.get_{desc,level,scope,id}` since `Types.type_expr`
   is abstract in OCaml 4.14.
