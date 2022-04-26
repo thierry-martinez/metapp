@@ -3,6 +3,13 @@
 - Port to ppxlib 0.26.0
   (suggested by @nilsbecker, https://github.com/thierry-martinez/ocaml-in-python/issues/1)
 
+- Add `Pat.Construct.Arg.{construct,destruct}` for constructing and
+  destructing `Ppat_construct` argument (for compatibility between OCaml 4.14
+  and older versions of OCaml).
+
+- Add `Te.destruct_decl` for destructing `Pext_decl` (for compatibility between
+  OCaml 4.14 and older versions of OCaml).
+
 # Versionx 0.4.3, 2022-03-21
 
 - Add getters `Metapp.Types.get_{desc,level,scope,id}` since `Types.type_expr`

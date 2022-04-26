@@ -1,3 +1,9 @@
+[%%metadir "version_info/.metapp_version_info.objs/byte/"]
+
+val ppxlib_version : int * int * int
+
+val ast_version : int * int
+
 (** {1 String constant destructor} *)
 
 type string_constant = {
@@ -340,7 +346,23 @@ module type ValueS = sig
       ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t list -> t
 end
 
-module Pat : ValueS with type t = Ppxlib.pattern
+module Pat : sig
+  include ValueS with type t = Ppxlib.pattern
+
+  module Construct : sig
+    module Arg : sig
+      type t = [%meta
+        if Metapp_version_info.ast_version >= (4, 14) then
+          [%t: string Location.loc list * Ppxlib.pattern]
+        else
+          [%t: Ppxlib.pattern]]
+
+      val construct : string Location.loc list -> Ppxlib.pattern -> t
+
+      val destruct : t -> string Location.loc list * Ppxlib.pattern
+    end
+  end
+end
 
 type value = {
     exp : Ppxlib.expression;
@@ -419,6 +441,18 @@ module Type : sig
   val has_deriver :
       string -> Ppxlib.type_declaration list ->
         (Ppxlib.Asttypes.arg_label * Ppxlib.expression) list option
+end
+
+(** {1 Extension constructors} *)
+
+module Te : sig
+  type decl = {
+      vars : Ast_helper.str list;
+      args : Parsetree.constructor_arguments;
+      res : Parsetree.core_type;
+    }
+
+  val destruct_decl : Parsetree.extension_constructor -> decl option
 end
 
 (** {1 Open} *)

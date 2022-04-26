@@ -1,9 +1,24 @@
+[%%metadir "version_info/.metapp_version_info.objs/byte/"]
+
 include (Metapp_preutils :
   module type of struct include Metapp_preutils end with
   module Exp := Metapp_preutils.Exp and
   module Typ := Metapp_preutils.Typ and
   module Mod := Metapp_preutils.Mod and
   module Mty := Metapp_preutils.Mty)
+
+let ppxlib_version = [%meta
+  let major, minor, patch = Metapp_version_info.ppxlib_version in
+  [%e (
+    [%meta Metapp_preutils.Exp.of_int major],
+    [%meta Metapp_preutils.Exp.of_int minor],
+    [%meta Metapp_preutils.Exp.of_int patch])]]
+
+let ast_version = [%meta
+  let major, minor = Metapp_version_info.ast_version in
+  [%e (
+    [%meta Metapp_preutils.Exp.of_int major],
+    [%meta Metapp_preutils.Exp.of_int minor])]]
 
 (** {1 String constant destructor} *)
 
@@ -198,6 +213,34 @@ module Attr = struct
         | _ -> None))
 end
 
+(** {1 Pattern} *)
+
+module Pat = struct
+  include Metapp_preutils.Pat
+
+  module Construct = struct
+    module Arg = struct
+      type t = [%meta
+        if Metapp_version_info.ast_version >= (4, 14) then
+          [%t: string Location.loc list * Ppxlib.pattern]
+        else
+          [%t: Ppxlib.pattern]]
+
+      let construct types pat = [%meta
+        if Metapp_version_info.ast_version >= (4, 14) then
+          [%e (types, pat)]
+        else
+          [%e pat]]
+
+      let destruct arg = [%meta
+        if Metapp_version_info.ast_version >= (4, 14) then
+          [%e arg]
+        else
+          [%e ([], arg)]]
+    end
+  end
+end
+
 (** {1 Type declarations} *)
 
 module Type = struct
@@ -206,6 +249,26 @@ module Type = struct
       : (Ppxlib.Asttypes.arg_label * Ppxlib.expression) list option =
     declarations |> List.find_map (fun (decl : Ppxlib.type_declaration) ->
       Attr.has_deriver deriver_name decl.ptype_attributes)
+end
+
+(** {1 Extension constructors} *)
+
+module Te : struct
+  type decl = {
+      vars : Ast_helper.str list;
+      args : Parsetree.constructor_arguments;
+      res : Parsetree.core_type;
+    }
+
+  let destruct_decl (ec : Parsetree.extension_constructor) = [%meta
+    if Metapp_version_info.ast_version >= (4, 14) then [%e
+      match ec with
+      | Pext_decl (vars, args, res) -> Some { vars; args; res }
+      | Pext_rebind _ -> None]
+    else [%e
+      match ec with
+      | Pext_decl (args, res) -> Some { vars = []; args; res }
+      | Pext_rebind _ -> None]]
 end
 
 (** {1 Longident} *)
@@ -319,8 +382,9 @@ class filter =
           | [singleton] -> singleton
           | args -> { p with ppat_desc = Ppat_tuple args }
           end
-      | Ppat_construct (lid, Some (_, arg)) ->
-          if check_pat arg then
+      | Ppat_construct (lid, Some arg) ->
+          let _, pat = Pat.Construct.Arg.destruct arg in
+          if check_pat pat then
             p
           else
             { p with ppat_desc = Ppat_construct (lid, None)}

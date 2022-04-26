@@ -1,6 +1,6 @@
 (library
   (public_name metapp)
-  (preprocess (pps metapp.ppx))
+  (preprocess (pps metapp.version_info metapp.ppx))
   (library_flags -linkall)
 ; +warning 32: Unused value declaration.
 ; +warning 34: Unused type declaration.
