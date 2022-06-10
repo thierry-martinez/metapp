@@ -256,11 +256,11 @@ end
 module Te = struct
   type decl = {
       vars : Ast_helper.str list;
-      args : Parsetree.constructor_arguments;
-      res : Parsetree.core_type option;
+      args : Ppxlib.constructor_arguments;
+      res : Ppxlib.core_type option;
     }
 
-  let destruct_decl (ec : Parsetree.extension_constructor_kind) = [%meta
+  let destruct_decl (ec : Ppxlib.extension_constructor_kind) = [%meta
     if Metapp_version_info.ast_version >= (4, 14) then [%e
       match ec with
       | Pext_decl (vars, args, res) -> Some { vars; args; res }

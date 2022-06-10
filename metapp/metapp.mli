@@ -448,11 +448,11 @@ end
 module Te : sig
   type decl = {
       vars : Ast_helper.str list;
-      args : Parsetree.constructor_arguments;
-      res : Parsetree.core_type option;
+      args : Ppxlib.constructor_arguments;
+      res : Ppxlib.core_type option;
     }
 
-  val destruct_decl : Parsetree.extension_constructor_kind -> decl option
+  val destruct_decl : Ppxlib.extension_constructor_kind -> decl option
 end
 
 (** {1 Open} *)
