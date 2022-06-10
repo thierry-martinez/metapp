@@ -1,4 +1,4 @@
-# Development version
+# Version 0.4.4, 2022-06-10
 
 - Port to ppxlib 0.26.0
   (suggested by @nilsbecker, https://github.com/thierry-martinez/ocaml-in-python/issues/1)
@@ -10,7 +10,7 @@
 - Add `Te.destruct_decl` for destructing `Pext_decl` (for compatibility between
   OCaml 4.14 and older versions of OCaml).
 
-# Versionx 0.4.3, 2022-03-21
+# Version 0.4.3, 2022-03-21
 
 - Add getters `Metapp.Types.get_{desc,level,scope,id}` since `Types.type_expr`
   is abstract in OCaml 4.14.

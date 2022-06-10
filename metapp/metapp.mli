@@ -449,10 +449,10 @@ module Te : sig
   type decl = {
       vars : Ast_helper.str list;
       args : Parsetree.constructor_arguments;
-      res : Parsetree.core_type;
+      res : Parsetree.core_type option;
     }
 
-  val destruct_decl : Parsetree.extension_constructor -> decl option
+  val destruct_decl : Parsetree.extension_constructor_kind -> decl option
 end
 
 (** {1 Open} *)
