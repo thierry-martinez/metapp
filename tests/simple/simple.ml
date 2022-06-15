@@ -25,5 +25,5 @@ let r = ref None
 
 let () =
   Test_framework.assert_eq (=)
-    (Stdcompat__format.pp_print_option Format.pp_print_string)
+    (Stdcompat.Format.pp_print_option Format.pp_print_string)
     (!r) (Some "Hello")
