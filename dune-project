@@ -1,4 +1,4 @@
-(lang dune 1.11)
+(lang dune 2.7)
 
 (generate_opam_files true)
 
@@ -25,5 +25,4 @@ compile-time.
   (stdcompat (>= 12))
   (ppxlib (>= 0.22.0))
   (ocamlfind (>= 1.8.1))
-  (dune (>= 1.11.0))
   (odoc (and :with-doc (>= 1.5.1)))))

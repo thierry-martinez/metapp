@@ -1,4 +1,5 @@
 [%%metadir "version_info/.metapp_version_info.objs/byte/"]
+[%%metaload "version_info/metapp_version_info.cmxs"]
 
 include (Metapp_preutils :
   module type of struct include Metapp_preutils end with

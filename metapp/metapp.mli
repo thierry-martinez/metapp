@@ -1,4 +1,5 @@
 [%%metadir "version_info/.metapp_version_info.objs/byte/"]
+[%%metaload "version_info/metapp_version_info.cmxs"]
 
 val ppxlib_version : int * int * int
 

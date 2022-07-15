@@ -1,4 +1,5 @@
 [%%metadir "metapp/.metapp.objs/byte/"]
+[%%metaload "metapp/metapp.cmxs"]
 [%%metapackage "stdcompat"]
 [%%metaflag "-open", "Stdcompat"]
 
