@@ -115,3 +115,25 @@ compiling the meta-code.
 
 Compilation commands can be logged by adding `[%%metaverbose]` to the
 preprocessed file.
+
+## How does `metapp` differ from [`ppx_stage`]
+
+[`ppx_stage`]: https://github.com/stedolan/ppx_stage
+
+- By using `ppx_stage`, a program can generate and execute other
+  programs at runtime (by invoking the compiler and dynamic loader at
+  runtime). By using metapp, a program can contain portion of codes
+  that are generated at compile time by executing other programs (by
+  invoking the compiler and dynamic loader during the preprocessing
+  phase).
+
+- With `ppx_stage`, each piece of code that is manipulated is checked
+  to be well-typed: a value of type `'a code` can be seen as a `unit
+  -> 'a` closure, with an efficient composition (by compiling). With
+  `metapp`, meta-programs directly manipulate the parse tree, with the
+  only constraint that the parse tree produced at the end should lead
+  to a well-typed program: this is more error prone, but that allows
+  to describe syntax extension as in the example I gave in this
+  thread, where we can manipulate as first-class values some piece of
+  syntax like record fields, that are not first-class citizens in the
+  language.
