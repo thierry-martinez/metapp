@@ -118,6 +118,8 @@ preprocessed file.
 
 ## How does `metapp` differ from [`ppx_stage`]
 
+(Discussed in this [this thread](https://discuss.ocaml.org/t/creating-a-ppx-that-transforms-record-updates/10189/4))
+
 [`ppx_stage`]: https://github.com/stedolan/ppx_stage
 
 - By using `ppx_stage`, a program can generate and execute other
@@ -133,7 +135,6 @@ preprocessed file.
   `metapp`, meta-programs directly manipulate the parse tree, with the
   only constraint that the parse tree produced at the end should lead
   to a well-typed program: this is more error prone, but that allows
-  to describe syntax extension as in the example I gave in this
-  thread, where we can manipulate as first-class values some piece of
-  syntax like record fields, that are not first-class citizens in the
-  language.
+  to describe syntax extensions where we can manipulate as first-class
+  values some piece of syntax like record fields, that are not
+  first-class citizens in the language.
