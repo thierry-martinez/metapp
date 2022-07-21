@@ -23,6 +23,35 @@ let compiler : compiler =
     archive_suffix = ".cma";
   }
 
+let format_process_status fmt (ps : Unix.process_status) =
+  match ps with
+  | WEXITED return_code ->
+      Format.fprintf fmt "return code %d" return_code
+  | WSIGNALED signal ->
+      Format.fprintf fmt "signal %d" signal
+  | WSTOPPED signal ->
+      Format.fprintf fmt "stopped %d" signal
+
+let fix_compiler_env env =
+  let channels = Unix.open_process_full "as --version" env in
+  let (as_stdout, _, as_stderr) = channels in
+  let _as_stdout = In_channel.input_all as_stdout in
+  let _as_stderr = In_channel.input_all as_stderr in
+  match Unix.close_process_full channels with
+  | WEXITED 0 -> ()
+  | process_status ->
+      if not (Sys.file_exists "/usr/bin/as") then
+        failwith "No 'as' in /usr/bin!";
+      let index, path =
+        let exception Result of { index: int; path: string } in
+        try
+          env |> Array.iteri (fun index path ->
+            if String.starts_with ~prefix:"PATH=" path then
+              raise (Result { index; path }));
+          failwith "No PATH in env"
+        with Result { index; path } -> index, path in
+      env.(index) <- Printf.sprintf "%s:/usr/bin" path
+
 let rec try_commands ~verbose list =
   match list with
   | [] -> assert false
@@ -30,14 +59,21 @@ let rec try_commands ~verbose list =
       let command_line = Filename.quote_command command args in
       if verbose then
         prerr_endline command_line;
-      match Sys.command command_line with
-      | 0 -> ()
-      | 127 when tl <> [] -> try_commands ~verbose tl
-      | exit_code ->
+      let env = Unix.environment () in
+      fix_compiler_env env;
+      let channels = Unix.open_process_full command_line env in
+      let (compiler_stdout, _, compiler_stderr) = channels in
+      let compiler_stdout = In_channel.input_all compiler_stdout in
+      let compiler_stderr = In_channel.input_all compiler_stderr in
+      match Unix.close_process_full channels with
+      | WEXITED 0 -> ()
+      | WEXITED 127 when tl <> [] -> try_commands ~verbose tl
+      | process_status ->
           Location.raise_errorf ~loc:!Ast_helper.default_loc
             "@[Unable@ to@ compile@ preprocessor:@ command-line@ \"%s\"@ \
-              failed@ with@ exit-code@ %d@]@."
-            (String.escaped command_line) exit_code
+              failed@ with@ %a@]@,@[stdout: %s@]@,@[stderr: %s@]."
+            (String.escaped command_line) format_process_status
+            process_status compiler_stdout compiler_stderr
 
 let compile (options : Options.t) (source_filename : string)
     (object_filename : string) : unit =
@@ -96,4 +132,4 @@ let compile_and_load (options : Options.t) (structure : Parsetree.structure)
     compile options source_filename object_filename;
     Fun.protect (fun () -> Dynlink.loadfile object_filename)
       ~finally:(fun () -> Sys.remove object_filename))
-    ~finally:(fun () -> Sys.remove source_filename)
+    ~finally:(fun () -> (*Sys.remove source_filename*)())
