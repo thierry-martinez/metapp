@@ -1,3 +1,8 @@
+# Development version
+
+- Fix #5: compatibility with merlin
+  (reported by Kiran Gopinathan, https://github.com/thierry-martinez/metapp/issues/5)
+
 # Version 0.4.4, 2022-07-15
 
 - Port to ppxlib 0.26.0
