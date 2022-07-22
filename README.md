@@ -118,7 +118,7 @@ preprocessed file.
 
 ## How does `metapp` differ from [`ppx_stage`]
 
-(Discussed in this [this thread](https://discuss.ocaml.org/t/creating-a-ppx-that-transforms-record-updates/10189/4))
+(Discussed in [this thread](https://discuss.ocaml.org/t/creating-a-ppx-that-transforms-record-updates/10189/4))
 
 [`ppx_stage`]: https://github.com/stedolan/ppx_stage
 
