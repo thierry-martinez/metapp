@@ -60,7 +60,7 @@ let rec try_commands ~verbose list =
       if verbose then
         prerr_endline command_line;
       let env = Unix.environment () in
-      fix_compiler_env env;
+      if not Sys.win32 then fix_compiler_env env;
       let channels = Unix.open_process_full command_line env in
       let (compiler_stdout, _, compiler_stderr) = channels in
       let compiler_stdout = In_channel.input_all compiler_stdout in
@@ -121,7 +121,8 @@ let write_ast (plainsource : bool) (channel : out_channel)
 
 let compile_and_load (options : Options.t) (structure : Parsetree.structure)
   : unit =
-  let (source_filename, channel) = Filename.open_temp_file "metapp" ".ml" in
+  let (source_filename, channel) =
+    Filename.open_temp_file ~mode:[Open_binary] "metapp" ".ml" in
   Fun.protect (fun () ->
     Fun.protect (fun () ->
       write_ast options.plainsource channel structure)
@@ -130,6 +131,15 @@ let compile_and_load (options : Options.t) (structure : Parsetree.structure)
       Filename.remove_extension source_filename ^
       compiler.archive_suffix in
     compile options source_filename object_filename;
+    Unix.chmod object_filename 0o640;
     Fun.protect (fun () -> Dynlink.loadfile object_filename)
-      ~finally:(fun () -> Sys.remove object_filename))
+      ~finally:(fun () ->
+        (* Windows is an OS that does not let deletes occur when the file
+           is still open. Dynlink.loadfile opens the file and does not close
+           it even in [at_exit]. It is probably an OCaml bug that there is
+           not way to close after Dynlink.loadfile, so we mitigate by just
+           keeping the file around. [dune build] will remove the temporary
+           directory (ex. build_3d445b_dune) regardless, so no resource leak
+           when using Dune. *)
+        if not Sys.win32 then Sys.remove object_filename))
     ~finally:(fun () -> (*Sys.remove source_filename*)())
