@@ -1,7 +1,19 @@
 # Development version
 
-- Fix #5: compatibility with merlin
-  (reported by Kiran Gopinathan, https://github.com/thierry-martinez/metapp/issues/5)
+- #5: compatibility with merlin
+  Reported by Kiran Gopinathan, https://github.com/thierry-martinez/metapp/issues/5
+
+- #8: Windows support
+  Contributed by jonahbeckford, https://github.com/thierry-martinez/metapp/pull/8
+
+- #9, #10: Fix filtering on type declaration (records and variants)
+  Reported and contributed by Török Edwin,
+  https://github.com/thierry-martinez/metapp/issues/9
+  and https://github.com/thierry-martinez/metapp/pull/10
+
+- #10, #11: Support filtering on list expressions and patterns
+  Reported by Török Edwin,
+  https://github.com/thierry-martinez/metapp/pull/10#issuecomment-1875539468
 
 # Version 0.4.4, 2022-07-15
 

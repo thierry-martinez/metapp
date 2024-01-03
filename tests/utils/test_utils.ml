@@ -46,6 +46,16 @@ let something _ = ()
         something' y z
     (* ... *) ]]
 
+[%%meta Metapp.Stri.of_list ((new Metapp.filter)#structure [%str
+let () =
+  assert (List.length [0; 1 [@if false]; 2] = 2)
+
+let () =
+  match [0; 2] with
+  | [0; 1 [@if false]; 2] -> ()
+  | _ -> assert false
+])]
+
 let () =
   Test_framework.assert_eq Int.equal Format.pp_print_int a 1
 

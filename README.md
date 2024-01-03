@@ -88,6 +88,23 @@ including tuples, function applications, arrays, etc.
     (* ... *) ]]
 ```
 
+Usually, when `[@if false]` appears in the components of a tuple (in
+an expression or a pattern), these components are removed: if the
+tuple becomes empty, the tuple is rewritten as the unit constructor
+`()`; if the tuple is reduced to a singleton `(v)`, the tuple is
+rewritten as the value `v` itself.
+
+Multiple arguments of a variant constructor are considered as a tuple
+syntactically: `C (a, b [@if false])` is rewritten as `C a` and
+`C (a [@if false], b [@if false])` is rewritten as `C ()` (a constructor `C`
+with a single argument of type `unit`), whereas
+`C ((a, b) [@if false])` is rewritten as `C` (a constant constructor `C`).
+There is a special case for the list constructor `::`: `a [@if false]::b`
+is rewritten as `b` (instead of applying the constructor `::` to the
+single argument `b`, which is most probably incorrect). This allows
+`[@if false]` to be used to filter list elements as in
+`[e1; ...; ei [@if false]; ...; en]`.
+
 Global definitions for meta-code can be included with `[%%metadef
 ...]`.
 By default, the meta-code is compiled with the `compiler-libs` package.

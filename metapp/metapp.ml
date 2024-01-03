@@ -394,6 +394,10 @@ class filter =
       | _ -> t
 
     method! pattern (p : Ppxlib.pattern) : Ppxlib.pattern =
+      let p =
+        match p with
+        | [%pat? [%p? hd] :: [%p? tl]] when not (check_pat hd) -> tl
+        | _ -> p in
       let p = super#pattern p in
       match p.ppat_desc with
       | Ppat_tuple args ->
@@ -426,6 +430,10 @@ class filter =
 
     method! expression (e : Ppxlib.expression) : Ppxlib.expression =
       Ppxlib.Ast_helper.with_default_loc e.pexp_loc @@ fun () ->
+      let e =
+        match e with
+        | [%expr [%e? hd] :: [%e? tl]] when not (check_expr hd) -> tl
+        | _ -> e in
       let e = super#expression e in
       match e.pexp_desc with
       | Pexp_let (rec_flag, bindings, body) ->
