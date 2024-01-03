@@ -71,20 +71,21 @@ attribute can appear mostly everywhere syntax elements are enumerated,
 including tuples, function applications, arrays, etc.
 
 ```ocaml
-[%%meta Metapp.include_structure (
-  Metapp.filter.structure Metapp.filter [%str
-    type t =
+[%%metapackage metapp]
+[%%meta Metapp.Stri.of_list @@ (new Metapp.filter)#structure [%str
+  type t =
     | A of int
     | B of int * int
         [@if [%meta Metapp.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]]
-    ...
+    (* ... *)
 
+  let somefunction v =
     match (v: t) with
     | A x -> something x
     | B (y,z)
       [@if [%meta Metapp.Exp.of_bool (Sys.ocaml_version >= "4.04.0")]] ->
         something' y z
-    ... ])]
+    (* ... *) ]]
 ```
 
 Global definitions for meta-code can be included with `[%%metadef

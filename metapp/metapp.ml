@@ -371,8 +371,27 @@ class filter =
     check_expr (snd arg) in
   let check_type_declaration (declaration : Ppxlib.type_declaration) =
     check_attr declaration.ptype_attributes in
+  let check_constructor (c : Ppxlib.constructor_declaration) =
+    check_attr c.pcd_attributes
+  in
+  let check_label (l: Ppxlib.label_declaration) =
+    check_attr l.pld_attributes
+  in
   object
     inherit Ppxlib.Ast_traverse.map as super
+
+    method! type_declaration (t : Ppxlib.type_declaration) : Ppxlib.type_declaration =
+      let t = super#type_declaration t in
+      match t.ptype_kind with
+      | Ptype_variant cons ->
+          let cons = List.filter check_constructor cons in
+          { t with ptype_kind = Ptype_variant cons }
+      | Ptype_record labels ->
+        begin  match List.filter check_label labels with
+        | [] -> Location.raise_errorf ~loc:t.ptype_loc "Empty records are not allowed"
+        | labels -> { t with ptype_kind = Ptype_record labels }
+        end
+      | _ -> t
 
     method! pattern (p : Ppxlib.pattern) : Ppxlib.pattern =
       let p = super#pattern p in
