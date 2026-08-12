@@ -1,7 +1,6 @@
 set -e
 
-# Compatibility with OCaml 5.4 and 5.5
-opam pin add https://github.com/ocamllibs/stdcompat.git#refs/pull/75/head
+opam pin add https://github.com/thierry-martinez/stdcompat.git#compatibility_with_OCaml_5.4_and_5.5
 
 opam install --yes . --deps-only
 
