@@ -84,7 +84,7 @@ let structure_of_expression (e : Ppxlib.expression) : Ppxlib.structure =
   [Ppxlib.Ast_helper.Str.eval e]
 
 let lid_of_str (str : Ppxlib.Ast_helper.str) : Ppxlib.Ast_helper.lid =
-  Location.mkloc (Longident.Lident str.txt) str.loc
+  Location.mkloc (Ppxlib.Longident.Lident str.txt) str.loc
 
 (** {1 Location management} *)
 
@@ -99,7 +99,7 @@ let with_loc (f : 'a -> 'b) (l : 'a Location.loc) : 'b =
 
 (** {1 Constructing identifiers } *)
 
-let make_ident ?(prefix : Longident.t option) (s : string) : Longident.t =
+let make_ident ?(prefix : Ppxlib.Longident.t option) (s : string) : Ppxlib.Longident.t =
   match prefix with
   | None -> Lident s
   | Some prefix -> Ldot (prefix, s)
@@ -449,7 +449,7 @@ module type BaseValueS = sig
 
   val array : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val record : ?attrs:Ppxlib.attributes -> (Longident.t * t) list -> t
+  val record : ?attrs:Ppxlib.attributes -> (Ppxlib.Longident.t * t) list -> t
 
   val variant : ?attrs:Ppxlib.attributes -> string -> t option -> t
 
@@ -490,18 +490,18 @@ module type ValueS = sig
 
   val option : ?attrs:Ppxlib.attributes -> t option -> t
 
-  val of_longident : Longident.t -> t
+  val of_longident : Ppxlib.Longident.t -> t
 
-  val construct : ?attrs:Ppxlib.attributes -> Longident.t -> t list -> t
+  val construct : ?attrs:Ppxlib.attributes -> Ppxlib.Longident.t -> t list -> t
 
   val tuple : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val nil : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> unit -> t
+  val nil : ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> unit -> t
 
-  val cons : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t -> t -> t
+  val cons : ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> t -> t -> t
 
   val list :
-      ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t list -> t
+      ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> t list -> t
 end
 
 let unit_ctor = "()"
@@ -514,7 +514,7 @@ let nil_ctor = "[]"
 
 let cons_ctor = "::"
 
-let longident = Longident.Lident "Longident"
+let longident = Ppxlib.Longident.Lident "Longident"
 
 module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
   include Base
@@ -529,7 +529,7 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     of_constant ?attrs (Ppxlib.Ast_helper.Const.char s)
 
   let of_unit ?attrs () =
-    force_construct ?attrs (mkloc (Longident.Lident unit_ctor)) None
+    force_construct ?attrs (mkloc (Ppxlib.Longident.Lident unit_ctor)) None
 
   let of_float ?attrs f =
     of_constant ?attrs (Ppxlib.Ast_helper.Const.float (string_of_float f))
@@ -549,7 +549,7 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     | [arg] -> arg
     | _ -> force_tuple ?attrs args
 
-  let construct ?attrs (ident : Longident.t) (args : t list) : t =
+  let construct ?attrs (ident : Ppxlib.Longident.t) (args : t list) : t =
     let arg =
       match args with
       | [] -> None
@@ -571,7 +571,7 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
     | None -> none ?attrs ()
     | Some x -> some ?attrs x
 
-  let rec of_longident (ident : Longident.t) : t =
+  let rec of_longident (ident : Ppxlib.Longident.t) : t =
     match ident with
     | Ldot (m, v) ->
         construct (Ldot (longident, "Ldot"))
@@ -595,7 +595,7 @@ module ExtendValue (Base : BaseValueS) : ValueS with type t = Base.t = struct
 end
 
 module Exp = struct
-  let ident ?loc ?attrs (ident : Longident.t) : Ppxlib.expression =
+  let ident ?loc ?attrs (ident : Ppxlib.Longident.t) : Ppxlib.expression =
     Ppxlib.Ast_helper.Exp.ident ?loc ?attrs (mkloc ident)
 
   let ident_of_str ?attrs (str : Ppxlib.Ast_helper.str) : Ppxlib.expression =
@@ -626,7 +626,7 @@ module Exp = struct
     let array ?attrs (items : t list) : t =
       Ppxlib.Ast_helper.Exp.array ?attrs items
 
-    let record ?attrs (fields : (Longident.t * t) list) : t =
+    let record ?attrs (fields : (Ppxlib.Longident.t * t) list) : t =
       Ppxlib.Ast_helper.Exp.record ?attrs
         (List.map (fun (field, value) -> (mkloc field, value)) fields)
         None
@@ -721,7 +721,7 @@ module Pat = ExtendValue (struct
   let force_construct ?attrs (lid : Ppxlib.Ast_helper.lid) (args : t option) : t =
     Ppxlib.Ast_helper.Pat.construct ?attrs lid args
 
-  let record ?attrs (fields : (Longident.t * t) list) : t =
+  let record ?attrs (fields : (Ppxlib.Longident.t * t) list) : t =
     Ppxlib.Ast_helper.Pat.record ?attrs
       (List.map (fun (field, value) -> (mkloc field, value)) fields)
       Closed
@@ -814,7 +814,7 @@ module Value : ValueS with type t = value = ExtendValue (struct
     { exp = Exp.array ?attrs args_exp;
       pat = Pat.array ?attrs args_pat; }
 
-  let record ?attrs (fields : (Longident.t * t) list) : t =
+  let record ?attrs (fields : (Ppxlib.Longident.t * t) list) : t =
     let fields_exp, fields_pat = split_assoc fields in
     { exp = Exp.record ?attrs fields_exp;
       pat = Pat.record ?attrs fields_pat; }

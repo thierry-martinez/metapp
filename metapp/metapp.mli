@@ -34,7 +34,7 @@ val list_of_tuple : Ppxlib.expression -> Ppxlib.expression list
 
 val structure_of_expression : Ppxlib.expression -> Ppxlib.structure
 
-val lid_of_str : Ast_helper.str -> Ast_helper.lid
+val lid_of_str : Ppxlib.Ast_helper.str -> Ppxlib.Ast_helper.lid
 
 val sequence : Ppxlib.expression list -> Ppxlib.expression
 
@@ -61,7 +61,7 @@ val with_loc : ('a -> 'b) -> 'a Location.loc -> 'b
 type 'a comparer = 'a -> 'a -> int
 
 module Longident : sig
-  type t = Longident.t
+  type t = Ppxlib.Longident.t
 
   val compare : t comparer
 
@@ -75,18 +75,18 @@ module Longident : sig
 
   val make : ?prefix : t -> string -> t
 
-  val concat : Longident.t -> t -> Longident.t
+  val concat : Ppxlib.Longident.t -> t -> Ppxlib.Longident.t
 
-  val of_module_expr_opt : Ppxlib.module_expr -> Longident.t option
+  val of_module_expr_opt : Ppxlib.module_expr -> Ppxlib.Longident.t option
 
-  val of_expression_opt : Ppxlib.expression -> Longident.t option
+  val of_expression_opt : Ppxlib.expression -> Ppxlib.Longident.t option
 
-  val of_payload_opt : Ppxlib.payload -> Longident.t option
+  val of_payload_opt : Ppxlib.payload -> Ppxlib.Longident.t option
 
-  val of_payload : Ppxlib.payload -> Longident.t
+  val of_payload : Ppxlib.payload -> Ppxlib.Longident.t
 end
 
-val mklid : ?prefix : Longident.t -> string -> Ast_helper.lid
+val mklid : ?prefix : Ppxlib.Longident.t -> string -> Ppxlib.Ast_helper.lid
 
 (** {1 Constructing function application} *)
 
@@ -265,7 +265,7 @@ module Types : sig
     if [type_desc] is a [Tpackage], for compatibility between OCaml 4.13
       and older versions of OCaml. *)
   val destruct_tpackage :
-    Types.type_desc -> (Path.t * (Longident.t * Types.type_expr) list) option
+    Types.type_desc -> (Path.t * (Ppxlib.Longident.t * Types.type_expr) list) option
 
   val get_desc : Types.type_expr -> Types.type_desc
   (** Getter for [type_expr] introduced in OCaml 4.14 *)
@@ -294,11 +294,11 @@ module type ValueS = sig
   val force_tuple : ?attrs:Ppxlib.attributes -> t list -> t
 
   val force_construct :
-      ?attrs:Ppxlib.attributes -> Ast_helper.lid -> t option -> t
+      ?attrs:Ppxlib.attributes -> Ppxlib.Ast_helper.lid -> t option -> t
 
   val array : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val record : ?attrs:Ppxlib.attributes -> (Longident.t * t) list -> t
+  val record : ?attrs:Ppxlib.attributes -> (Ppxlib.Longident.t * t) list -> t
 
   val variant : ?attrs:Ppxlib.attributes -> string -> t option -> t
 
@@ -333,18 +333,18 @@ module type ValueS = sig
 
   val option : ?attrs:Ppxlib.attributes -> t option -> t
 
-  val of_longident : Longident.t -> t
+  val of_longident : Ppxlib.Longident.t -> t
 
-  val construct : ?attrs:Ppxlib.attributes -> Longident.t -> t list -> t
+  val construct : ?attrs:Ppxlib.attributes -> Ppxlib.Longident.t -> t list -> t
 
   val tuple : ?attrs:Ppxlib.attributes -> t list -> t
 
-  val nil : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> unit -> t
+  val nil : ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> unit -> t
 
-  val cons : ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t -> t -> t
+  val cons : ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> t -> t -> t
 
   val list :
-      ?attrs:Ppxlib.attributes -> ?prefix:Longident.t -> t list -> t
+      ?attrs:Ppxlib.attributes -> ?prefix:Ppxlib.Longident.t -> t list -> t
 end
 
 module Pat : sig
@@ -468,7 +468,7 @@ module Exp : sig
   include ValueS with type t = Ppxlib.expression
 
   val ident :
-      ?loc:Location.t -> ?attrs:Ppxlib.attributes -> Longident.t ->
+      ?loc:Location.t -> ?attrs:Ppxlib.attributes -> Ppxlib.Longident.t ->
         Ppxlib.expression
 
   val ident_of_str :
@@ -548,18 +548,18 @@ end
 
 module With : sig
   val typesubst :
-      ?t:Ast_helper.lid -> Ppxlib.type_declaration ->
+      ?t:Ppxlib.Ast_helper.lid -> Ppxlib.type_declaration ->
         Ppxlib.with_constraint
 
   val destruct_typesubst :
       Ppxlib.with_constraint ->
-        (Ast_helper.lid * Ppxlib.type_declaration) option
+        (Ppxlib.Ast_helper.lid * Ppxlib.type_declaration) option
 
   val modsubst :
-      Ast_helper.lid -> Ast_helper.lid -> Ppxlib.with_constraint
+      Ppxlib.Ast_helper.lid -> Ppxlib.Ast_helper.lid -> Ppxlib.with_constraint
 
   val destruct_modsubst :
-      Ppxlib.with_constraint -> (Ast_helper.lid * Ast_helper.lid) option
+      Ppxlib.with_constraint -> (Ppxlib.Ast_helper.lid * Ppxlib.Ast_helper.lid) option
 end
 
 (** {1 General purpose functions} *)

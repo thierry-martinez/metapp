@@ -275,7 +275,7 @@ end
 (** {1 Longident} *)
 
 module Longident = struct
-  include Longident
+  include Ppxlib.Longident
 
   let make ?prefix name =
     make_ident ?prefix name
@@ -307,14 +307,14 @@ module Longident = struct
     | Ldot (a, b) -> Hashtbl.hash (hash a, b)
     | Lapply (m, x) -> Hashtbl.hash (hash m, hash x)
 
-  let pp (fmt : Format.formatter) (ident : Longident.t) =
+  let pp (fmt : Format.formatter) (ident : Ppxlib.Longident.t) =
     Ppxlib.Pprintast.expression fmt (Ppxlib.Ast_helper.Exp.ident (mkloc ident))
 
-  let show (ident : Longident.t) : string =
+  let show (ident : Ppxlib.Longident.t) : string =
     Format.asprintf "%a" pp ident
 
   let of_module_expr_opt (module_expr : Ppxlib.module_expr)
-      : Longident.t option =
+      : Ppxlib.Longident.t option =
     match module_expr.pmod_desc with
     | Pmod_ident { txt; _ } -> Some txt
     | _ -> None
@@ -442,10 +442,10 @@ class filter =
           | bindings ->
               { e with pexp_desc = Pexp_let (rec_flag, bindings, body) }
           end
-      | Pexp_fun (_label, _default, pat, body) when not (check_pat pat) ->
-          body
-      | Pexp_function cases ->
-          { e with pexp_desc = Pexp_function (List.filter check_case cases)}
+      | Pexp_function (_param, _cstr, Pfunction_body body) ->
+          e
+      | Pexp_function (param, cstr, Pfunction_cases (cases, loc, attr)) ->
+          { e with pexp_desc = Pexp_function (param, cstr, Pfunction_cases (List.filter check_case cases, loc, attr))}
       | Pexp_apply (f, args) ->
           let items =
             List.filter check_expr_snd ((Ppxlib.Asttypes.Nolabel, f) :: args) in
@@ -769,7 +769,24 @@ module Types = struct
       | _ -> None]]
 
   let destruct_tpackage (type_desc : Types.type_desc) =
-    [%meta if Sys.ocaml_version >= "4.13.0" then [%e
+    [%meta if Sys.ocaml_version >= "5.4.0" then [%e
+      match type_desc with
+      | Tpackage package ->
+          let unflatten l =
+            match l with
+            | [] -> assert false
+            | hd :: tl ->
+                List.fold_left (fun acc s -> Ppxlib.Longident.Ldot (acc, s))
+                  (Lident hd) tl in
+          let list =
+            List.map (fun (s, ty) -> (unflatten s, ty))
+              [%meta if Sys.ocaml_version >= "5.5.0" then [%e
+                package.pack_constraints]
+              else [%e
+                package.pack_cstrs]] in
+          Some (package.pack_path, list)
+      | _ -> None]
+    else if Sys.ocaml_version >= "4.13.0" then [%e
       match type_desc with
       | Tpackage (path, list) -> Some (path, list)
       | _ -> None]

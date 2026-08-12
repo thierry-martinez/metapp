@@ -64,4 +64,4 @@ let () =
     [%meta
        Metapp.Exp.of_bool (Option.equal Metapp.Longident.equal
          (Metapp.Longident.of_expression_opt [%e M.(+)])
-         (Some (Longident.Ldot (Lident "M", "+"))))]
+         (Some (Ppxlib.Longident.Ldot (Lident "M", "+"))))]

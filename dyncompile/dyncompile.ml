@@ -23,14 +23,14 @@ let compiler : compiler =
     archive_suffix = ".cma";
   }
 
-let format_process_status fmt (ps : Unix.process_status) =
+let format_process_status (ps : Unix.process_status) =
   match ps with
   | WEXITED return_code ->
-      Format.fprintf fmt "return code %d" return_code
+      Printf.sprintf "return code %d" return_code
   | WSIGNALED signal ->
-      Format.fprintf fmt "signal %d" signal
+      Printf.sprintf "signal %d" signal
   | WSTOPPED signal ->
-      Format.fprintf fmt "stopped %d" signal
+      Printf.sprintf "stopped %d" signal
 
 let fix_compiler_env env =
   let channels = Unix.open_process_full "as --version" env in
@@ -71,9 +71,10 @@ let rec try_commands ~verbose list =
       | process_status ->
           Location.raise_errorf ~loc:!Ast_helper.default_loc
             "@[Unable@ to@ compile@ preprocessor:@ command-line@ \"%s\"@ \
-              failed@ with@ %a@]@,@[stdout: %s@]@,@[stderr: %s@]."
-            (String.escaped command_line) format_process_status
-            process_status compiler_stdout compiler_stderr
+              failed@ with@ %s@]@,@[stdout: %s@]@,@[stderr: %s@]."
+            (String.escaped command_line)
+            (format_process_status process_status)
+            compiler_stdout compiler_stderr
 
 let compile (options : Options.t) (source_filename : string)
     (object_filename : string) : unit =

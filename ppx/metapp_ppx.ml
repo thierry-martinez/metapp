@@ -211,7 +211,7 @@ let subquotations_field = "subquotations"
 let field_get (expr : Ppxlib.expression) (field : string)
     : Ppxlib.expression =
   Ppxlib.Ast_helper.Exp.field expr
-    (Metapp_preutils.mkloc (Longident.Lident field))
+    (Metapp_preutils.mkloc (Ppxlib.Longident.Lident field))
 
 let context_get (field : string) : Ppxlib.expression =
   field_get (Metapp_preutils.Exp.var context_var) field
@@ -229,7 +229,7 @@ let replace_metapoints (contents : Metapp_api.OptionArrayMetapoints.t)
   let module Mapper' = Metapoint_mapper (Mapper) in
   new Mapper'.map
 
-let metapp_api = Longident.Lident "Metapp_api"
+let metapp_api = Ppxlib.Longident.Lident "Metapp_api"
 
 module type Map = sig
   class map : Ppxlib.Ast_traverse.map
