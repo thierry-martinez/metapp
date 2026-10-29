@@ -15,6 +15,10 @@
   Reported by Török Edwin,
   https://github.com/thierry-martinez/metapp/pull/10#issuecomment-1875539468
 
+- Compatibility with OCaml 5.3, 5.4 and 5.5, and ppxlib >= 0.37 (OCaml 5.2
+  AST, where functions are represented by `Pexp_function` with a list of
+  parameters: `[@if]` filtering applies to these parameters)
+
 # Version 0.4.4, 2022-07-15
 
 - Port to ppxlib 0.26.0

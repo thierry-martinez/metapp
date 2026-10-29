@@ -65,3 +65,21 @@ let () =
        Metapp.Exp.of_bool (Option.equal Metapp.Longident.equal
          (Metapp.Longident.of_expression_opt [%e M.(+)])
          (Some (Ppxlib.Longident.Ldot (Lident "M", "+"))))]
+
+[%%meta Metapp.Stri.of_list ((new Metapp.filter)#structure [%str
+let () =
+  let f x (_ [@if false]) z = x + z in
+  assert (f 1 3 = 4)
+
+let () =
+  let f = fun (_ [@if false]) : int -> 42 in
+  assert (f = 42)
+
+let () =
+  let f = function 0 -> 1 | (1 [@if false]) -> 2 | _ -> 3 in
+  assert (f 1 = 3)
+
+let () =
+  let f (type a) (x : a) (_ [@if false]) : a = x in
+  assert (f "a" = "a")
+])]

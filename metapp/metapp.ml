@@ -442,10 +442,30 @@ class filter =
           | bindings ->
               { e with pexp_desc = Pexp_let (rec_flag, bindings, body) }
           end
-      | Pexp_function (_param, _cstr, Pfunction_body body) ->
-          e
-      | Pexp_function (param, cstr, Pfunction_cases (cases, loc, attr)) ->
-          { e with pexp_desc = Pexp_function (param, cstr, Pfunction_cases (List.filter check_case cases, loc, attr))}
+      | Pexp_function (params, cstr, body) ->
+          let check_param (param : Ppxlib.function_param) =
+            match param.pparam_desc with
+            | Pparam_val (_label, _default, pat) -> check_pat pat
+            | Pparam_newtype _ -> true in
+          let params = List.filter check_param params in
+          begin match params, body with
+          | [], Pfunction_body body ->
+              (* All the parameters have been removed: the function
+                 reduces to its body, under its type constraint if any. *)
+              begin match cstr with
+              | None -> body
+              | Some (Pconstraint ty) ->
+                  { e with pexp_desc = Pexp_constraint (body, ty) }
+              | Some (Pcoerce (ty0, ty1)) ->
+                  { e with pexp_desc = Pexp_coerce (body, ty0, ty1) }
+              end
+          | _, Pfunction_body _ ->
+              { e with pexp_desc = Pexp_function (params, cstr, body) }
+          | _, Pfunction_cases (cases, loc, attr) ->
+              let body =
+                Ppxlib.Pfunction_cases (List.filter check_case cases, loc, attr) in
+              { e with pexp_desc = Pexp_function (params, cstr, body) }
+          end
       | Pexp_apply (f, args) ->
           let items =
             List.filter check_expr_snd ((Ppxlib.Asttypes.Nolabel, f) :: args) in
