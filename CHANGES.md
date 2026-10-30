@@ -19,6 +19,9 @@
   AST, where functions are represented by `Pexp_function` with a list of
   parameters: `[@if]` filtering applies to these parameters)
 
+- `Metapp.ast_version` is `(5, 2)` for ppxlib >= 0.36, which uses the
+  OCaml 5.2 AST (it was `(4, 14)`)
+
 # Version 0.4.4, 2022-07-15
 
 - Port to ppxlib 0.26.0

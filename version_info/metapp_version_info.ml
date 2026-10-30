@@ -11,4 +11,5 @@ let ppxlib_version =
 let ast_version =
   match ppxlib_version with
   | (0, (22 | 23 | 24 | 25), _) -> (4, 12)
+  | _ when ppxlib_version >= (0, 36, 0) -> (5, 2)
   | _ -> (4, 14)
