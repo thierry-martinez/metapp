@@ -1,5 +1,8 @@
 # Development version
 
+- Requires ppxlib >= 0.36 (OCaml 5.2 AST); OCaml >= 4.08 is still
+  supported with these ppxlib versions
+
 - #5: compatibility with merlin
   Reported by Kiran Gopinathan, https://github.com/thierry-martinez/metapp/issues/5
 
